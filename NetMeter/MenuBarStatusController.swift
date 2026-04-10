@@ -22,13 +22,20 @@ final class NetMeterAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @MainActor
-final class MenuBarStatusController: NSObject {
+final class MenuBarStatusController: NSObject, NSMenuDelegate {
     static let shared = MenuBarStatusController()
+
+    /// 与紧凑版 SpeedHUD 内容区一致（含内边距与两行文字）
+    private enum HUDWindowMetrics {
+        static let width: CGFloat = 148
+        static let height: CGFloat = 72
+    }
 
     private var statusItem: NSStatusItem?
     private weak var monitor: NetTopSpeedMonitor?
     private weak var labelUp: NSTextField?
     private weak var labelDown: NSTextField?
+    private weak var hudMenuItem: NSMenuItem?
     /// 网速悬浮窗（无主窗口时由 AppKit 托管 SwiftUI）
     private var hudWindow: NSWindow?
 
@@ -135,8 +142,10 @@ final class MenuBarStatusController: NSObject {
 
     private func buildMenu() -> NSMenu {
         let m = NSMenu()
-        let hudItem = NSMenuItem(title: "网速悬浮窗", action: #selector(openHudWindow), keyEquivalent: "")
+        m.delegate = self
+        let hudItem = NSMenuItem(title: Self.hudMenuTitle(showing: false), action: #selector(toggleHudWindow), keyEquivalent: "")
         hudItem.target = self
+        hudMenuItem = hudItem
         m.addItem(hudItem)
         m.addItem(.separator())
         let quit = NSMenuItem(title: "退出 NetMeter", action: #selector(quitApp), keyEquivalent: "q")
@@ -145,16 +154,36 @@ final class MenuBarStatusController: NSObject {
         return m
     }
 
-    @objc private func openHudWindow() {
+    /// 菜单展开时同步文案（避免仅依赖上次点击后的状态）
+    func menuWillOpen(_ menu: NSMenu) {
+        refreshHudMenuItemTitle()
+    }
+
+    private static func hudMenuTitle(showing: Bool) -> String {
+        showing ? "隐藏网速悬浮窗" : "显示网速悬浮窗"
+    }
+
+    private func refreshHudMenuItemTitle() {
+        let showing = hudWindow?.isVisible == true
+        hudMenuItem?.title = Self.hudMenuTitle(showing: showing)
+    }
+
+    @objc private func toggleHudWindow() {
         NSApp.activate(ignoringOtherApps: true)
+        if let w = hudWindow, w.isVisible {
+            w.orderOut(nil)
+            refreshHudMenuItemTitle()
+            return
+        }
         if hudWindow == nil {
+            let size = NSSize(width: HUDWindowMetrics.width, height: HUDWindowMetrics.height)
             let root = SpeedHUDView()
                 .environment(NetTopSpeedMonitor.shared)
             let hosting = NSHostingController(rootView: root)
-            hosting.view.frame = CGRect(x: 0, y: 0, width: 240, height: 120)
+            hosting.view.frame = CGRect(origin: .zero, size: size)
 
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 240, height: 120),
+                contentRect: NSRect(origin: .zero, size: size),
                 styleMask: [.borderless, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
@@ -166,11 +195,12 @@ final class MenuBarStatusController: NSObject {
             w.collectionBehavior.insert(.canJoinAllSpaces)
             w.isMovableByWindowBackground = true
             w.contentViewController = hosting
-            w.setContentSize(NSSize(width: 240, height: 120))
+            w.setContentSize(size)
             w.center()
             hudWindow = w
         }
         hudWindow?.makeKeyAndOrderFront(nil)
+        refreshHudMenuItemTitle()
     }
 
     @objc private func quitApp() {
