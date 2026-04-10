@@ -26,23 +26,24 @@ struct SpeedHUDView: View {
     @Environment(NetTopSpeedMonitor.self) private var monitor
 
     var body: some View {
-        // 同一区域：上半上传、下半下载（与菜单栏一致）
-        VStack(alignment: .leading, spacing: 6) {
-            Text(SpeedFormatter.detailLine(bytesPerSecond: monitor.uploadBps, prefix: "↑ 上行"))
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+        // 与菜单栏相同短格式，仅保留上下行箭头（无「上行/下行」文案）
+        VStack(alignment: .leading, spacing: 4) {
+            Text("↑ \(SpeedFormatter.menuBarStyledSpeed(bytesPerSecond: monitor.uploadBps))")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-            Text(SpeedFormatter.detailLine(bytesPerSecond: monitor.downloadBps, prefix: "↓ 下行"))
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+            Text("↓ \(SpeedFormatter.menuBarStyledSpeed(bytesPerSecond: monitor.downloadBps))")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .monospacedDigit()
             if let err = monitor.lastError {
                 Text(err)
-                    .font(.caption2)
+                    .font(.system(size: 9))
                     .foregroundStyle(.red)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
         }
-        .padding(12)
-        .frame(minWidth: 200)
+        .padding(8)
+        .frame(minWidth: 128, alignment: .leading)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .background(FloatingWindowConfigurator())
