@@ -11,34 +11,10 @@ struct NetMeterApp: App {
     @NSApplicationDelegateAdaptor(NetMeterAppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup(id: "main") {
-            MainWindowHost()
-                .environment(NetTopSpeedMonitor.shared)
+        // 满足 SwiftUI App 的 Scene 要求；启动时不自动打开文档窗口
+        WindowGroup {
+            EmptyView()
         }
-
-        Window("网速悬浮", id: "speedHud") {
-            SpeedHUDView()
-                .environment(NetTopSpeedMonitor.shared)
-        }
-        .windowStyle(.plain)
-        .defaultSize(width: 240, height: 120)
-    }
-}
-
-// MARK: - 主窗口（接收来自 NSStatusItem 菜单的通知以 openWindow）
-
-private struct MainWindowHost: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        ContentView()
-            .onReceive(NotificationCenter.default.publisher(for: .netMeterOpenMainWindow)) { _ in
-                NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "main")
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .netMeterOpenHudWindow)) { _ in
-                NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "speedHud")
-            }
+        .defaultLaunchBehavior(.suppressed)
     }
 }
