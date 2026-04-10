@@ -6,15 +6,12 @@
 
 import AppKit
 import Observation
-
-extension Notification.Name {
-    static let netMeterOpenMainWindow = Notification.Name("netMeterOpenMainWindow")
-    static let netMeterOpenHudWindow = Notification.Name("netMeterOpenHudWindow")
-}
+import SwiftUI
 
 @MainActor
 final class NetMeterAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
         NetTopSpeedMonitor.shared.start()
         MenuBarStatusController.shared.install(monitor: NetTopSpeedMonitor.shared)
     }
@@ -32,6 +29,8 @@ final class MenuBarStatusController: NSObject {
     private weak var monitor: NetTopSpeedMonitor?
     private weak var labelUp: NSTextField?
     private weak var labelDown: NSTextField?
+    /// 网速悬浮窗（无主窗口时由 AppKit 托管 SwiftUI）
+    private var hudWindow: NSWindow?
 
     private override init() {
         super.init()
@@ -107,9 +106,6 @@ final class MenuBarStatusController: NSObject {
 
     private func buildMenu() -> NSMenu {
         let m = NSMenu()
-        let mainItem = NSMenuItem(title: "打开主窗口…", action: #selector(openMainWindow), keyEquivalent: "")
-        mainItem.target = self
-        m.addItem(mainItem)
         let hudItem = NSMenuItem(title: "网速悬浮窗", action: #selector(openHudWindow), keyEquivalent: "")
         hudItem.target = self
         m.addItem(hudItem)
@@ -120,12 +116,32 @@ final class MenuBarStatusController: NSObject {
         return m
     }
 
-    @objc private func openMainWindow() {
-        NotificationCenter.default.post(name: .netMeterOpenMainWindow, object: nil)
-    }
-
     @objc private func openHudWindow() {
-        NotificationCenter.default.post(name: .netMeterOpenHudWindow, object: nil)
+        NSApp.activate(ignoringOtherApps: true)
+        if hudWindow == nil {
+            let root = SpeedHUDView()
+                .environment(NetTopSpeedMonitor.shared)
+            let hosting = NSHostingController(rootView: root)
+            hosting.view.frame = CGRect(x: 0, y: 0, width: 240, height: 120)
+
+            let w = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 240, height: 120),
+                styleMask: [.borderless, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            w.isOpaque = false
+            w.backgroundColor = .clear
+            w.hasShadow = true
+            w.level = .floating
+            w.collectionBehavior.insert(.canJoinAllSpaces)
+            w.isMovableByWindowBackground = true
+            w.contentViewController = hosting
+            w.setContentSize(NSSize(width: 240, height: 120))
+            w.center()
+            hudWindow = w
+        }
+        hudWindow?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func quitApp() {
