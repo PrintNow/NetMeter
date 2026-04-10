@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- 主稿：上下行流量与底部计量弧；图形约 82% 安全区 -->
+  <defs>
+    <linearGradient id="nm-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2a3d56"/>
+      <stop offset="100%" stop-color="#111820"/>
+    </linearGradient>
+    <linearGradient id="nm-arc" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#5eb0ff"/>
+      <stop offset="100%" stop-color="#3de8c8"/>
+    </linearGradient>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="208" ry="208" fill="url(#nm-bg)"/>
+  <path fill="#3de8c8" d="M512 268 L392 418h240L512 268z"/>
+  <path fill="#6eb6ff" d="M512 756 L632 606H392L512 756z"/>
+  <rect x="472" y="418" width="80" height="188" rx="28" fill="#243447"/>
+  <path
+    fill="none"
+    stroke="url(#nm-arc)"
+    stroke-width="52"
+    stroke-linecap="round"
+    d="M 280 688 A 232 232 0 0 1 744 688"/>
+  <g fill="none" stroke="#7a8fa8" stroke-width="28" stroke-linecap="round">
+    <path d="M 325 615 L 355 635"/>
+    <path d="M 395 545 L 425 565"/>
+    <path d="M 512 500 L 512 540"/>
+    <path d="M 629 545 L 599 565"/>
+    <path d="M 699 615 L 669 635"/>
+  </g>
+</svg>

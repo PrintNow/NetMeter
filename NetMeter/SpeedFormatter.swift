@@ -10,8 +10,9 @@ enum SpeedFormatter {
     /// 菜单栏单行速率，参照常见网速样式：`27.0 K/s`、`5.8 M/s`（数字与单位间有空格）
     static func menuBarStyledSpeed(bytesPerSecond: Double) -> String {
         let v = max(0, bytesPerSecond)
+        // 有流量但不足 1K/s 时用统一文案，避免 B/s 位数跳动；零流量仍显示 0
         if v < 1024 {
-            return String(format: "%.0f B/s", v)
+            return v > 0 ? "<1K/s" : "0 B/s"
         }
         let k = v / 1024
         if k < 1024 {

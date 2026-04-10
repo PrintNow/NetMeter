@@ -51,19 +51,34 @@ final class MenuBarStatusController: NSObject {
         root.orientation = .horizontal
         root.spacing = 3
         root.alignment = .centerY
+        // 水平方向填满状态按钮，多余宽度交给低 hugging 的子视图（文本列），整体靠右排布
+        root.distribution = .fill
 
         let iconView = NSImageView()
-        if let img = NSImage(systemSymbolName: "arrow.up.and.down", accessibilityDescription: nil) {
-            let sym = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.contentTintColor = .labelColor
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        // 是否使用资源中的瘦高 SVG（与下方宽高比约束一致）
+        let usesTrafficSVG: Bool
+        if let img = NSImage(named: "MenuBarTrafficArrows") {
+            iconView.image = img
+            usesTrafficSVG = true
+        } else if let img = NSImage(systemSymbolName: "arrow.up.and.down", accessibilityDescription: nil) {
+            // 兜底用偏细字重，接近矢量版的细线观感
+            let sym = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
             iconView.image = img.withSymbolConfiguration(sym)
-            iconView.contentTintColor = .secondaryLabelColor
-            iconView.imageScaling = .scaleProportionallyDown
+            usesTrafficSVG = false
+        } else {
+            usesTrafficSVG = false
         }
+        iconView.setContentHuggingPriority(.defaultHigh, for: .horizontal)
 
         let col = NSStackView()
         col.orientation = .vertical
         col.spacing = 0
+        // 两行右缘对齐；配合低 hugging 让本列吃掉图标右侧剩余宽度，数字贴近菜单栏右侧
         col.alignment = .trailing
+        col.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         let up = makeSpeedLabel()
         let down = makeSpeedLabel()
@@ -78,11 +93,25 @@ final class MenuBarStatusController: NSObject {
         root.translatesAutoresizingMaskIntoConstraints = false
         button.addSubview(root)
 
-        NSLayoutConstraint.activate([
+        var rootConstraints: [NSLayoutConstraint] = [
             root.centerYAnchor.constraint(equalTo: button.centerYAnchor),
             root.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 3),
             root.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -3),
-        ])
+        ]
+        // SVG viewBox 12×18（约 2:3，对齐参考双箭头比例）；高度略低于文字列，避免图标显得笨重
+        if usesTrafficSVG {
+            let svgAspect: CGFloat = 12 / 18
+            rootConstraints.append(contentsOf: [
+                iconView.heightAnchor.constraint(equalTo: col.heightAnchor, multiplier: 0.82),
+                iconView.widthAnchor.constraint(equalTo: iconView.heightAnchor, multiplier: svgAspect),
+            ])
+        } else if iconView.image != nil {
+            rootConstraints.append(contentsOf: [
+                iconView.widthAnchor.constraint(equalToConstant: 12),
+                iconView.heightAnchor.constraint(lessThanOrEqualTo: col.heightAnchor),
+            ])
+        }
+        NSLayoutConstraint.activate(rootConstraints)
 
         item.menu = buildMenu()
         updateLabels()

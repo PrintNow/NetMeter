@@ -38,8 +38,8 @@ final class NetTopSpeedMonitor {
     private(set) var lastError: String?
     private(set) var lastUpdate: Date?
 
-    /// 与 nettop -s 一致，用于换算 Bps
-    var sampleIntervalSeconds: Double = 1.5
+    /// 与 nettop -s 一致，用于换算 Bps（菜单栏约 2s 刷新，平衡响应与稳定）
+    var sampleIntervalSeconds: Double = 2
 
     private var loopTask: Task<Void, Never>?
 
