@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		14D3251F2F896CDE00C5E2A0 /* NetMeterDebug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = NetMeterDebug.app; path = NetMeter.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A70000032F896CDE00C5E2A0 /* NetMeterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NetMeterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +17,22 @@
 			path = NetMeter;
 			sourceTree = "<group>";
 		};
+		A70000012F896CDE00C5E2A0 /* NetMeterTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NetMeterTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		14D3251C2F896CDE00C5E2A0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A70000052F896CDE00C5E2A0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				14D325212F896CDE00C5E2A0 /* NetMeter */,
+				A70000012F896CDE00C5E2A0 /* NetMeterTests */,
 				14D325202F896CDE00C5E2A0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				14D3251F2F896CDE00C5E2A0 /* NetMeterDebug.app */,
+				A70000032F896CDE00C5E2A0 /* NetMeterTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,7 +85,48 @@
 			productReference = 14D3251F2F896CDE00C5E2A0 /* NetMeterDebug.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A70000022F896CDE00C5E2A0 /* NetMeterTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A700000B2F896CDE00C5E2A0 /* Build configuration list for PBXNativeTarget "NetMeterTests" */;
+			buildPhases = (
+				A70000042F896CDE00C5E2A0 /* Sources */,
+				A70000052F896CDE00C5E2A0 /* Frameworks */,
+				A70000062F896CDE00C5E2A0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A70000072F896CDE00C5E2A0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A70000012F896CDE00C5E2A0 /* NetMeterTests */,
+			);
+			name = NetMeterTests;
+			packageProductDependencies = (
+			);
+			productName = NetMeterTests;
+			productReference = A70000032F896CDE00C5E2A0 /* NetMeterTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		A70000082F896CDE00C5E2A0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 14D325172F896CDE00C5E2A0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 14D3251E2F896CDE00C5E2A0;
+			remoteInfo = NetMeter;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		A70000072F896CDE00C5E2A0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 14D3251E2F896CDE00C5E2A0 /* NetMeter */;
+			targetProxy = A70000082F896CDE00C5E2A0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		14D325172F896CDE00C5E2A0 /* Project object */ = {
@@ -82,6 +138,10 @@
 				TargetAttributes = {
 					14D3251E2F896CDE00C5E2A0 = {
 						CreatedOnToolsVersion = 26.4;
+					};
+					A70000022F896CDE00C5E2A0 = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = 14D3251E2F896CDE00C5E2A0;
 					};
 				};
 			};
@@ -100,6 +160,7 @@
 			projectRoot = "";
 			targets = (
 				14D3251E2F896CDE00C5E2A0 /* NetMeter */,
+				A70000022F896CDE00C5E2A0 /* NetMeterTests */,
 			);
 		};
 /* End PBXProject section */
@@ -112,10 +173,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A70000062F896CDE00C5E2A0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		14D3251B2F896CDE00C5E2A0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A70000042F896CDE00C5E2A0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -243,6 +318,64 @@
 			};
 			name = Release;
 		};
+		A70000092F896CDE00C5E2A0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				OBJROOT = "$(SRCROOT)/.derived.noindex/Intermediates.noindex";
+				PRODUCT_BUNDLE_IDENTIFIER = cc.nowtime.NetMeter.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				SYMROOT = "$(SRCROOT)/.derived.noindex/Products";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMeter.app/Contents/MacOS/NetMeter";
+			};
+			name = Debug;
+		};
+		A700000A2F896CDE00C5E2A0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				OBJROOT = "$(SRCROOT)/.derived.noindex/Intermediates.noindex";
+				PRODUCT_BUNDLE_IDENTIFIER = cc.nowtime.NetMeter.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				SYMROOT = "$(SRCROOT)/.derived.noindex/Products";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMeter.app/Contents/MacOS/NetMeter";
+			};
+			name = Release;
+		};
 		14D3252B2F896CDF00C5E2A0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -325,6 +458,15 @@
 			buildConfigurations = (
 				14D3252B2F896CDF00C5E2A0 /* Debug */,
 				14D3252C2F896CDF00C5E2A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A700000B2F896CDE00C5E2A0 /* Build configuration list for PBXNativeTarget "NetMeterTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A70000092F896CDE00C5E2A0 /* Debug */,
+				A700000A2F896CDE00C5E2A0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

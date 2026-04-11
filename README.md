@@ -11,13 +11,12 @@ macOS 菜单栏网速显示（基于 nettop 采样）。
 
 ### Debug 构建与 Spotlight
 
-Xcode **Debug** 配置已将中间产物与 `.app` 输出到仓库内的 **`.derived.noindex/`**（通过 `SYMROOT` / `OBJROOT`）。目录名以 **`.noindex` 结尾时，系统 Spotlight 通常不会索引其中内容**，这样日常按 ⌘Space 搜索时不容易蹦出 DerivedData 里的调试版 NetMeter。
+Xcode **Debug** 配置已将中间产物与 `.app` 输出到仓库内的 `**.derived.noindex/`**（通过 `SYMROOT` / `OBJROOT`）。目录名以 `**.noindex` 结尾时，系统 Spotlight 通常不会索引其中内容**，这样日常按 ⌘Space 搜索时不容易蹦出 DerivedData 里的调试版 NetMeter。
 
-- **Debug** 与 **Release** 产物文件名均为 **`NetMeter.app`**（仅构建目录不同）；Debug 使用 **`CFBundleDisplayName = NetMeter (Debug)`**，且 **Bundle Identifier 为 `cc.nowtime.NetMeter.debug`**，与正式版 **`cc.nowtime.NetMeter`** 不同。这样 Launch Services / Spotlight 会把调试版与正式版当成**两个应用**，不会因同 Bundle ID 互相覆盖或混淆。
+- **Debug** 与 **Release** 产物文件名均为 `**NetMeter.app`**（仅构建目录不同）；Debug 使用 `**CFBundleDisplayName = NetMeter (Debug)**`，且 **Bundle Identifier 为 `cc.nowtime.NetMeter.debug`**，与正式版 `**cc.nowtime.NetMeter**` 不同。这样 Launch Services / Spotlight 会把调试版与正式版当成**两个应用**，不会因同 Bundle ID 互相覆盖或混淆。
 - 调试版与正式版**可同时运行**（菜单栏会出现两组网速图标）；若不需要，请只保留其一。
-
 - **Release** 仍走默认 DerivedData（或由 `scripts/package-release.sh` 自带的 `-derivedDataPath` 决定），不受影响。
-- 若你以前在本机用旧配置编译过，`~/Library/Developer/Xcode/DerivedData/NetMeter-*` 里可能还留着旧产物，可在 Xcode **Settings → Locations → Derived Data** 里删掉对应文件夹，或整包删除该 `NetMeter-*` 目录，避免历史副本仍被搜到。
+- 若你以前在本机用旧配置编译过，`~/Library/Developer/Xcode/DerivedData/NetMeter-`* 里可能还留着旧产物，可在 Xcode **Settings → Locations → Derived Data** 里删掉对应文件夹，或整包删除该 `NetMeter-`* 目录，避免历史副本仍被搜到。
 - 若希望**全局**不再索引所有 Xcode 产物，可在 **系统设置 → Siri 与 Spotlight → Spotlight 隐私…** 中添加 `~/Library/Developer/Xcode/DerivedData`。
 
 ### 自动化打包（版本号来自 git tag）
@@ -31,12 +30,12 @@ Xcode **Debug** 配置已将中间产物与 `.app` 输出到仓库内的 **`.der
 
 ## 无 Apple 开发者证书时：首次打开与隔离属性
 
-本仓库默认使用 **本机临时签名**（`Sign to Run Locally`），**未做** Apple 公证（Notarization）。若你从网盘、GitHub Releases 等**下载 zip** 解压，macOS 会给 App 打上 **`com.apple.quarantine`（隔离）** 标记，可能出现：
+本仓库默认使用 **本机临时签名**（`Sign to Run Locally`），**未做** Apple 公证（Notarization）。若你从网盘、GitHub Releases 等**下载 zip** 解压，macOS 会给 App 打上 `**com.apple.quarantine`（隔离）** 标记，可能出现：
 
 - 提示「无法打开，因为来自身份不明的开发者」
 - 或「已损坏，无法打开」（部分情况下实为 Gatekeeper 拦截）
 
-可在解压后对 **`.app` 所在路径**执行下面命令，**递归清除扩展属性**（含隔离标记），再双击打开：
+可在解压后对 `**.app` 所在路径**执行下面命令，**递归清除扩展属性**（含隔离标记），再双击打开：
 
 ```bash
 xattr -cr /路径/到/NetMeter.app
@@ -51,7 +50,7 @@ xattr -cr ~/Downloads/NetMeter.app
 说明：
 
 - `-c`：清除该路径上的扩展属性  
-- `-r`：递归处理 `.app` 包内文件  
+- `-r`：递归处理 `.app` 包内文件
 
 若你**只想去掉隔离**而保留其它 xattr，也可以用：
 

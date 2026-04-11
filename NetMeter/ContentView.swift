@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(NetworkSpeedMonitor.self) private var monitor
+    @ObservedObject var monitor: NetworkSpeedMonitor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -45,6 +45,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
-        .environment(NetworkSpeedMonitor())
+    ContentView(monitor: NetworkSpeedMonitor())
 }

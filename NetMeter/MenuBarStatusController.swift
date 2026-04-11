@@ -5,7 +5,6 @@
 //  使用 NSStatusItem + AppKit 布局，在系统菜单栏厚度内垂直居中，避免 SwiftUI MenuBarExtra 裁切双行文字。
 
 import AppKit
-import Observation
 import SwiftUI
 
 @MainActor
@@ -47,6 +46,8 @@ final class MenuBarStatusController: NSObject {
     private var appliedSpeedLabelWidth: CGFloat = 0
     private var shrinkWidthWorkItem: DispatchWorkItem?
     private var aboutWindow: NSWindow?
+    /// 定时拉取速率刷新菜单栏，避免 withObservationTracking 高频闭环占满 CPU
+    private var menuBarRefreshTimer: Timer?
 
     private override init() {
         super.init()
@@ -54,6 +55,7 @@ final class MenuBarStatusController: NSObject {
 
     deinit {
         shrinkWidthWorkItem?.cancel()
+        menuBarRefreshTimer?.invalidate()
     }
 
     func install(monitor: NetworkSpeedMonitor) {
@@ -86,9 +88,9 @@ final class MenuBarStatusController: NSObject {
         rowDown.alignment = .centerY
         rowDown.distribution = .fill
 
-        // ↗/↙ 旋转 ±45°，视觉上为正上/正下
-        let arrowUp = makeRotatedArrowView(character: "↗", rotationDegrees: -45)
-        let arrowDown = makeRotatedArrowView(character: "↙", rotationDegrees: -45)
+        // 纯 AppKit 箭头，避免 NSHostingView+SwiftUI 在菜单栏持续合成
+        let arrowUp = makeArrowLabel(isUpload: true)
+        let arrowDown = makeArrowLabel(isUpload: false)
         let up = makeSpeedLabel()
         let down = makeSpeedLabel()
         rowUp.addArrangedSubview(arrowUp)
@@ -133,21 +135,35 @@ final class MenuBarStatusController: NSObject {
         menu.delegate = self
         item.menu = menu
         updateLabels()
-        bindObservation(monitor)
+        startMenuBarRefreshTimer(for: monitor)
     }
 
-    /// 斜向箭头旋转为正上/正下；略加大字号并加粗，避免在菜单栏上偏淡
-    private func makeRotatedArrowView(character: String, rotationDegrees: Double) -> NSView {
-        let root = Text(character)
-            .font(.system(size: 10, weight: .bold))
-            .foregroundStyle(Color(nsColor: .labelColor))
-            .rotationEffect(.degrees(rotationDegrees))
-            .frame(width: 14, height: 14)
-        let host = NSHostingView(rootView: root)
-        host.translatesAutoresizingMaskIntoConstraints = false
-        host.setContentHuggingPriority(.defaultHigh, for: .horizontal)
-        host.setContentHuggingPriority(.defaultHigh, for: .vertical)
-        return host
+    private func makeArrowLabel(isUpload: Bool) -> NSTextField {
+        let f = NSTextField(labelWithString: isUpload ? "↑" : "↓")
+        f.font = NSFont.systemFont(ofSize: 10, weight: .bold)
+        f.textColor = .labelColor
+        f.alignment = .center
+        f.backgroundColor = .clear
+        f.isBordered = false
+        f.isEditable = false
+        f.isSelectable = false
+        f.translatesAutoresizingMaskIntoConstraints = false
+        f.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        f.setContentHuggingPriority(.defaultHigh, for: .vertical)
+        f.widthAnchor.constraint(equalToConstant: 14).isActive = true
+        f.heightAnchor.constraint(equalToConstant: 14).isActive = true
+        return f
+    }
+
+    private func startMenuBarRefreshTimer(for monitor: NetworkSpeedMonitor) {
+        menuBarRefreshTimer?.invalidate()
+        let interval = max(0.25, monitor.sampleIntervalSeconds)
+        let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+            self?.updateLabels()
+        }
+        t.tolerance = interval * 0.2
+        RunLoop.main.add(t, forMode: .common)
+        menuBarRefreshTimer = t
     }
 
     private func makeSpeedLabel() -> NSTextField {
@@ -197,6 +213,9 @@ final class MenuBarStatusController: NSObject {
     @objc private func selectSamplingBackend(_ sender: NSMenuItem) {
         guard let b = SpeedSamplingBackend.fromMenuItemTag(sender.tag) else { return }
         monitor?.backend = b
+        if let m = monitor {
+            startMenuBarRefreshTimer(for: m)
+        }
     }
 
     @objc private func showAboutPanel() {
@@ -227,8 +246,12 @@ final class MenuBarStatusController: NSObject {
     private func updateLabels() {
         guard let monitor else { return }
         let lines = MenuBarSpeedLines.make(uploadBps: monitor.uploadBps, downloadBps: monitor.downloadBps)
-        labelUp?.stringValue = lines.upload
-        labelDown?.stringValue = lines.download
+        if labelUp?.stringValue != lines.upload {
+            labelUp?.stringValue = lines.upload
+        }
+        if labelDown?.stringValue != lines.download {
+            labelDown?.stringValue = lines.download
+        }
         reconcileSpeedLabelWidths(upload: lines.upload, download: lines.download)
     }
 
@@ -270,22 +293,6 @@ final class MenuBarStatusController: NSObject {
         }
         shrinkWidthWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + DynamicSpeedWidth.shrinkDelay, execute: work)
-    }
-
-    /// 监听 @Observable 的速率变化并刷新标签
-    private func bindObservation(_ monitor: NetworkSpeedMonitor) {
-        func observe() {
-            withObservationTracking {
-                _ = monitor.uploadBps
-                _ = monitor.downloadBps
-            } onChange: {
-                Task { @MainActor in
-                    self.updateLabels()
-                    observe()
-                }
-            }
-        }
-        observe()
     }
 
     /// 打开菜单前同步「数据来源」勾选状态
