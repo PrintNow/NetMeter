@@ -12,12 +12,12 @@ import SwiftUI
 final class NetMeterAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        NetTopSpeedMonitor.shared.start()
-        MenuBarStatusController.shared.install(monitor: NetTopSpeedMonitor.shared)
+        NetworkSpeedMonitor.shared.start()
+        MenuBarStatusController.shared.install(monitor: NetworkSpeedMonitor.shared)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        NetTopSpeedMonitor.shared.stop()
+        NetworkSpeedMonitor.shared.stop()
     }
 }
 
@@ -31,7 +31,7 @@ final class MenuBarStatusController: NSObject {
     }
 
     private var statusItem: NSStatusItem?
-    private weak var monitor: NetTopSpeedMonitor?
+    private weak var monitor: NetworkSpeedMonitor?
     private weak var labelUp: NSTextField?
     private weak var labelDown: NSTextField?
 
@@ -56,7 +56,7 @@ final class MenuBarStatusController: NSObject {
         shrinkWidthWorkItem?.cancel()
     }
 
-    func install(monitor: NetTopSpeedMonitor) {
+    func install(monitor: NetworkSpeedMonitor) {
         guard statusItem == nil else { return }
         self.monitor = monitor
 
@@ -129,7 +129,9 @@ final class MenuBarStatusController: NSObject {
             root.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -3),
         ])
 
-        item.menu = buildMenu()
+        let menu = buildMenu()
+        menu.delegate = self
+        item.menu = menu
         updateLabels()
         bindObservation(monitor)
     }
@@ -163,16 +165,38 @@ final class MenuBarStatusController: NSObject {
         return f
     }
 
+    private enum MenuCopy {
+        static let dataSource = "数据来源"
+    }
+
     private func buildMenu() -> NSMenu {
         let m = NSMenu()
         let about = NSMenuItem(title: "关于 \(NetMeterDisplayName.resolved)…", action: #selector(showAboutPanel), keyEquivalent: "")
         about.target = self
         m.addItem(about)
         m.addItem(.separator())
+
+        let sourceParent = NSMenuItem(title: MenuCopy.dataSource, action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        for b in SpeedSamplingBackend.allCases {
+            let it = NSMenuItem(title: b.localizedTitle, action: #selector(selectSamplingBackend(_:)), keyEquivalent: "")
+            it.target = self
+            it.tag = b.menuItemTag
+            sub.addItem(it)
+        }
+        sourceParent.submenu = sub
+        m.addItem(sourceParent)
+
+        m.addItem(.separator())
         let quit = NSMenuItem(title: "退出 \(NetMeterDisplayName.resolved)", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         m.addItem(quit)
         return m
+    }
+
+    @objc private func selectSamplingBackend(_ sender: NSMenuItem) {
+        guard let b = SpeedSamplingBackend.fromMenuItemTag(sender.tag) else { return }
+        monitor?.backend = b
     }
 
     @objc private func showAboutPanel() {
@@ -249,7 +273,7 @@ final class MenuBarStatusController: NSObject {
     }
 
     /// 监听 @Observable 的速率变化并刷新标签
-    private func bindObservation(_ monitor: NetTopSpeedMonitor) {
+    private func bindObservation(_ monitor: NetworkSpeedMonitor) {
         func observe() {
             withObservationTracking {
                 _ = monitor.uploadBps
@@ -262,5 +286,22 @@ final class MenuBarStatusController: NSObject {
             }
         }
         observe()
+    }
+
+    /// 打开菜单前同步「数据来源」勾选状态
+    private func syncSamplingBackendMenuChecks(in menu: NSMenu) {
+        guard let current = monitor?.backend else { return }
+        guard let idx = menu.items.firstIndex(where: { $0.title == MenuCopy.dataSource }),
+              let sub = menu.items[idx].submenu else { return }
+        for it in sub.items {
+            guard let b = SpeedSamplingBackend.fromMenuItemTag(it.tag) else { continue }
+            it.state = b == current ? .on : .off
+        }
+    }
+}
+
+extension MenuBarStatusController: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        syncSamplingBackendMenuChecks(in: menu)
     }
 }

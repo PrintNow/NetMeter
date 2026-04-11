@@ -1,10 +1,11 @@
 //
-//  NetTopSpeedMonitor.swift
+//  NetTopSpeedSampler.swift
 //  NetMeter
+//
+//  单次执行 nettop 并解析 CSV，供 NetworkSpeedMonitor 的 nettop 后端使用。
 //
 
 import Foundation
-import Observation
 
 enum NetTopMonitorError: LocalizedError {
     case timeout
@@ -24,56 +25,9 @@ enum NetTopMonitorError: LocalizedError {
     }
 }
 
-/// 后台轮询 nettop，汇总全进程上下行速率（字节/秒）
-@Observable
-@MainActor
-final class NetTopSpeedMonitor {
-    /// 菜单栏等全局入口共用同一实例
-    static let shared = NetTopSpeedMonitor()
-
-    /// 下行（本机接收）
-    private(set) var downloadBps: Double = 0
-    /// 上行（本机发送）
-    private(set) var uploadBps: Double = 0
-    private(set) var lastError: String?
-    private(set) var lastUpdate: Date?
-
-    /// 与 nettop -s 一致，用于换算 Bps（菜单栏约 2s 刷新，平衡响应与稳定）
-    var sampleIntervalSeconds: Double = 2
-
-    private var loopTask: Task<Void, Never>?
-
-    func start() {
-        loopTask?.cancel()
-        loopTask = Task { await self.runLoop() }
-    }
-
-    func stop() {
-        loopTask?.cancel()
-        loopTask = nil
-    }
-
-    private func runLoop() async {
-        while !Task.isCancelled {
-            let interval = sampleIntervalSeconds
-            do {
-                let parsed = try await Task.detached(priority: .utility) {
-                    try NetTopSpeedMonitor.runNettopSync(intervalSeconds: interval)
-                }.value
-                downloadBps = parsed.downloadBps
-                uploadBps = parsed.uploadBps
-                lastError = nil
-                lastUpdate = Date()
-            } catch is CancellationError {
-                break
-            } catch {
-                lastError = error.localizedDescription
-            }
-        }
-    }
-
+enum NetTopSpeedSampler {
     /// 单次执行 nettop，解析第二段 CSV（delta）
-    private nonisolated static func runNettopSync(intervalSeconds: Double) throws -> (downloadBps: Double, uploadBps: Double) {
+    nonisolated static func runNettopSync(intervalSeconds: Double) throws -> (downloadBps: Double, uploadBps: Double) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
         process.arguments = ["-P", "-L", "2", "-d", "-s", formatIntervalArg(intervalSeconds), "-x"]
@@ -106,13 +60,10 @@ final class NetTopSpeedMonitor {
         return try parseCSVBlocks(text, intervalSeconds: intervalSeconds)
     }
 
-    /// 生成 nettop -s 参数（避免多余小数位）
     private nonisolated static func formatIntervalArg(_ v: Double) -> String {
         if v == floor(v) { return String(format: "%.0f", v) }
         return String(v)
     }
-
-    // MARK: - 解析
 
     private nonisolated static func isHeaderLine(_ line: String) -> Bool {
         line.hasPrefix("time") && line.contains("bytes_in") && line.contains("bytes_out")

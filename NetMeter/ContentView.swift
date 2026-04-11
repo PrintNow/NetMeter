@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(NetTopSpeedMonitor.self) private var monitor
+    @Environment(NetworkSpeedMonitor.self) private var monitor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -35,7 +35,7 @@ struct ContentView: View {
                     .foregroundStyle(.red)
             }
 
-            Text("数据来自 nettop 进程汇总（约每 \(String(format: "%.1f", monitor.sampleIntervalSeconds)) 秒刷新）。")
+            Text("数据来源：\(monitor.backend.localizedTitle)。\(monitor.backend.statusLineHint)。约每 \(String(format: "%.1f", monitor.sampleIntervalSeconds)) 秒刷新。")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
@@ -46,5 +46,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .environment(NetTopSpeedMonitor())
+        .environment(NetworkSpeedMonitor())
 }
