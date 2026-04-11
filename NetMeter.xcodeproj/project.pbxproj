@@ -261,6 +261,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OBJROOT = "$(SRCROOT)/.derived.noindex/Intermediates.noindex";
+				SYMROOT = "$(SRCROOT)/.derived.noindex/Products";
 				PRODUCT_BUNDLE_IDENTIFIER = cc.nowtime.NetMeter;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
