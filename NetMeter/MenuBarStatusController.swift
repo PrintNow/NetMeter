@@ -35,8 +35,24 @@ final class MenuBarStatusController: NSObject {
     private weak var labelUp: NSTextField?
     private weak var labelDown: NSTextField?
 
+    /// 动态占位宽：加宽立即生效，收窄延迟执行，减少菜单栏左右抖动
+    private enum DynamicSpeedWidth {
+        /// 计划未答复时的默认：流量低于当前占位宽持续该时长后才收窄
+        static let shrinkDelay: TimeInterval = 5
+        static let widthEpsilon: CGFloat = 0.5
+    }
+
+    private var widthConstraintUp: NSLayoutConstraint?
+    private var widthConstraintDown: NSLayoutConstraint?
+    private var appliedSpeedLabelWidth: CGFloat = 0
+    private var shrinkWidthWorkItem: DispatchWorkItem?
+
     private override init() {
         super.init()
+    }
+
+    deinit {
+        shrinkWidthWorkItem?.cancel()
     }
 
     func install(monitor: NetTopSpeedMonitor) {
@@ -80,13 +96,18 @@ final class MenuBarStatusController: NSObject {
         labelUp = up
         labelDown = down
 
-        let speedW = Self.menuBarSpeedLabelWidth()
+        let lines0 = MenuBarSpeedLines.make(uploadBps: monitor.uploadBps, downloadBps: monitor.downloadBps)
+        up.stringValue = lines0.upload
+        down.stringValue = lines0.download
+        let w0 = MenuBarSpeedLines.unifiedLabelWidth(upload: lines0.upload, download: lines0.download)
+        appliedSpeedLabelWidth = w0
         up.translatesAutoresizingMaskIntoConstraints = false
         down.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            up.widthAnchor.constraint(equalToConstant: speedW),
-            down.widthAnchor.constraint(equalToConstant: speedW),
-        ])
+        let cUp = up.widthAnchor.constraint(equalToConstant: w0)
+        let cDown = down.widthAnchor.constraint(equalToConstant: w0)
+        widthConstraintUp = cUp
+        widthConstraintDown = cDown
+        NSLayoutConstraint.activate([cUp, cDown])
 
         // 顶 1pt 占位，与参考里 Spacer(height: 1) 一致，微调垂直位置
         let topInset = NSView()
@@ -111,13 +132,13 @@ final class MenuBarStatusController: NSObject {
         bindObservation(monitor)
     }
 
-    /// 斜向箭头旋转为正上/正下
+    /// 斜向箭头旋转为正上/正下；略加大字号并加粗，避免在菜单栏上偏淡
     private func makeRotatedArrowView(character: String, rotationDegrees: Double) -> NSView {
         let root = Text(character)
-            .font(.system(size: 10))
+            .font(.system(size: 10, weight: .bold))
             .foregroundStyle(Color(nsColor: .labelColor))
             .rotationEffect(.degrees(rotationDegrees))
-            .frame(width: 15, height: 15)
+            .frame(width: 14, height: 14)
         let host = NSHostingView(rootView: root)
         host.translatesAutoresizingMaskIntoConstraints = false
         host.setContentHuggingPriority(.defaultHigh, for: .horizontal)
@@ -125,16 +146,9 @@ final class MenuBarStatusController: NSObject {
         return host
     }
 
-    /// 与 `makeSpeedLabel` 字体一致；按 `999.9 M/s` 估宽（再高会截断，日常足够）
-    private static func menuBarSpeedLabelWidth() -> CGFloat {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
-        let sample = "999.9 M/s" as NSString
-        return ceil(sample.size(withAttributes: [.font: font]).width)
-    }
-
     private func makeSpeedLabel() -> NSTextField {
         let f = NSTextField(labelWithString: "—")
-        f.font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+        f.font = MenuBarSpeedLines.menuBarMonospaceFont
         f.textColor = .labelColor
         f.alignment = .right
         f.maximumNumberOfLines = 1
@@ -164,6 +178,47 @@ final class MenuBarStatusController: NSObject {
         let lines = MenuBarSpeedLines.make(uploadBps: monitor.uploadBps, downloadBps: monitor.downloadBps)
         labelUp?.stringValue = lines.upload
         labelDown?.stringValue = lines.download
+        reconcileSpeedLabelWidths(upload: lines.upload, download: lines.download)
+    }
+
+    /// 目标宽小于已应用宽时防抖收窄；变宽立即跟上
+    private func reconcileSpeedLabelWidths(upload: String, download: String) {
+        let targetW = MenuBarSpeedLines.unifiedLabelWidth(upload: upload, download: download)
+        let eps = DynamicSpeedWidth.widthEpsilon
+        if targetW > appliedSpeedLabelWidth + eps {
+            cancelScheduledShrink()
+            applySpeedLabelWidth(targetW)
+        } else if targetW + eps < appliedSpeedLabelWidth {
+            scheduleShrinkDebounced()
+        } else {
+            cancelScheduledShrink()
+        }
+    }
+
+    private func applySpeedLabelWidth(_ w: CGFloat) {
+        widthConstraintUp?.constant = w
+        widthConstraintDown?.constant = w
+        appliedSpeedLabelWidth = w
+    }
+
+    private func cancelScheduledShrink() {
+        shrinkWidthWorkItem?.cancel()
+        shrinkWidthWorkItem = nil
+    }
+
+    private func scheduleShrinkDebounced() {
+        cancelScheduledShrink()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.shrinkWidthWorkItem = nil
+            guard let u = self.labelUp?.stringValue, let d = self.labelDown?.stringValue else { return }
+            let targetW = MenuBarSpeedLines.unifiedLabelWidth(upload: u, download: d)
+            let eps = DynamicSpeedWidth.widthEpsilon
+            guard targetW + eps < self.appliedSpeedLabelWidth else { return }
+            self.applySpeedLabelWidth(targetW)
+        }
+        shrinkWidthWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + DynamicSpeedWidth.shrinkDelay, execute: work)
     }
 
     /// 监听 @Observable 的速率变化并刷新标签

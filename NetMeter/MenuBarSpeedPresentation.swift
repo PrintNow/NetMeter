@@ -4,7 +4,29 @@
 //
 //  菜单栏定宽速率文案；悬浮窗若后续再做可复用此层。
 
+import AppKit
 import Foundation
+
+extension MenuBarSpeedLines {
+    /// 与菜单栏速率标签一致的等宽数字字体
+    static var menuBarMonospaceFont: NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+    }
+
+    /// 两行共用占位宽：取较宽一行，且不超过 `999.9 M/s` 的测宽（与历史固定上限一致）
+    static func unifiedLabelWidth(upload: String, download: String) -> CGFloat {
+        let font = menuBarMonospaceFont
+        let cap = capLabelWidth(font: font)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let wUp = ceil((upload as NSString).size(withAttributes: attrs).width)
+        let wDown = ceil((download as NSString).size(withAttributes: attrs).width)
+        return min(cap, max(wUp, wDown))
+    }
+
+    private static func capLabelWidth(font: NSFont) -> CGFloat {
+        ceil(("999.9 M/s" as NSString).size(withAttributes: [.font: font]).width)
+    }
+}
 
 /// 菜单栏两行定宽速率文案（由 bps 换算，与 View 解耦）
 struct MenuBarSpeedLines: Equatable {
