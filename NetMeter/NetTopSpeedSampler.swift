@@ -36,16 +36,21 @@ enum NetTopSpeedSampler {
         process.standardOutput = pipe
         process.standardError = pipe
 
+        let timeout: TimeInterval = max(8, intervalSeconds * 4 + 4)
         try process.run()
 
-        let timeout: TimeInterval = max(8, intervalSeconds * 4 + 4)
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning {
-            if Date() > deadline {
-                process.terminate()
-                throw NetTopMonitorError.timeout
-            }
-            Thread.sleep(forTimeInterval: 0.05)
+        let sem = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async {
+            // 在后台阻塞等待子进程，避免高频 Thread.sleep 轮询占 CPU
+            process.waitUntilExit()
+            sem.signal()
+        }
+
+        if sem.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate()
+            // 等待 waitUntilExit 返回，避免僵尸句柄
+            _ = sem.wait(timeout: .now() + 5)
+            throw NetTopMonitorError.timeout
         }
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
@@ -57,7 +62,7 @@ enum NetTopSpeedSampler {
             throw NetTopMonitorError.processFailed(code: process.terminationStatus, message: text)
         }
 
-        return try parseCSVBlocks(text, intervalSeconds: intervalSeconds)
+        return try parseNettopCSVBlocks(text, intervalSeconds: intervalSeconds)
     }
 
     private nonisolated static func formatIntervalArg(_ v: Double) -> String {
@@ -97,7 +102,8 @@ enum NetTopSpeedSampler {
         return fields
     }
 
-    private nonisolated static func parseCSVBlocks(_ output: String, intervalSeconds: Double) throws -> (downloadBps: Double, uploadBps: Double) {
+    /// 供单测与实现共用
+    internal nonisolated static func parseNettopCSVBlocks(_ output: String, intervalSeconds: Double) throws -> (downloadBps: Double, uploadBps: Double) {
         let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map { String($0) }
 
         var blocks: [[String]] = []

@@ -66,9 +66,14 @@ else
     build
 fi
 
+# 产物目录：本工程 Release 主 target 未覆盖 SYMROOT 时多为 $BUILD_ROOT/Release（与 -derivedDataPath 并存）
 APP_PATH="$DERIVED/Build/Products/Release/${PRODUCT_NAME}.app"
 if [[ ! -d "$APP_PATH" ]]; then
-  echo "错误：未找到 $APP_PATH。" >&2
+  APP_PATH="$BUILD_ROOT/Release/${PRODUCT_NAME}.app"
+fi
+if [[ ! -d "$APP_PATH" ]]; then
+  # ${APP_PATH} 与全角句号分开，避免 bash 3.2 把 $APP_PATH。 当成未定义变量名
+  echo "错误：未找到 Release 产物（已尝试 DerivedData 与 BUILD_ROOT/Release）：${APP_PATH}" >&2
   exit 1
 fi
 

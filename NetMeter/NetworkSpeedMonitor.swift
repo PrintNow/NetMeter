@@ -2,20 +2,19 @@
 //  NetworkSpeedMonitor.swift
 //  NetMeter
 //
-//  统一门面：默认使用 getifaddrs 接口字节差分（低开销），可选 nettop 后端。
+//  统一门面：默认 getifaddrs 接口差分，可选 nettop。采样在 detached 任务中运行，
+//  避免 @Observable + MainActor 采样环导致 CPU 异常偏高。
 //
 
-import Darwin
+import Combine
 import Foundation
-import Observation
 
-// MARK: - 后端与错误
+// MARK: - 后端
 
 enum SpeedSamplingBackend: String, CaseIterable, Sendable {
     case interfaceCounters
     case nettop
 
-    /// 菜单项 tag（与 `allCases` 顺序一致）
     var menuItemTag: Int {
         Self.allCases.firstIndex(of: self) ?? 0
     }
@@ -32,7 +31,6 @@ enum SpeedSamplingBackend: String, CaseIterable, Sendable {
         }
     }
 
-    /// 关于/界面说明用短描述
     var statusLineHint: String {
         switch self {
         case .interfaceCounters: return "内核网络接口字节计数差分（低开销）"
@@ -41,122 +39,74 @@ enum SpeedSamplingBackend: String, CaseIterable, Sendable {
     }
 }
 
-private enum InterfaceCounterSamplerError: LocalizedError {
-    case getifaddrsFailed(code: Int32)
+// MARK: - 展示状态（单次 @Published 刷新，减少 SwiftUI 通知开销）
 
-    var errorDescription: String? {
-        switch self {
-        case .getifaddrsFailed(let code): return "getifaddrs 失败（错误码 \(code)）"
-        }
-    }
-}
-
-// MARK: - 接口筛选与采样
-
-/// 常见物理网卡与 VPN utun；排除桥接以降低重复计数风险
-private enum InterfaceCounterPolicy {
-    nonisolated static func shouldInclude(name: String, flags: UInt32) -> Bool {
-        guard (flags & UInt32(IFF_UP)) != 0, (flags & UInt32(IFF_RUNNING)) != 0 else { return false }
-        guard (flags & UInt32(IFF_LOOPBACK)) == 0 else { return false }
-        let n = name.lowercased()
-        if n.hasPrefix("bridge") { return false }
-        return n.hasPrefix("en") || n.hasPrefix("utun")
-    }
-}
-
-private enum InterfaceCounterSampler {
-    /// 各接口名 -> (ifi_ibytes, ifi_obytes)，内核为 32 位累计值
-    nonisolated static func snapshotTotals() throws -> [String: (UInt32, UInt32)] {
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let head = ifaddr else {
-            throw InterfaceCounterSamplerError.getifaddrsFailed(code: errno)
-        }
-        defer { freeifaddrs(head) }
-
-        var result: [String: (UInt32, UInt32)] = [:]
-        var ptr: UnsafeMutablePointer<ifaddrs>? = head
-        while let p = ptr {
-            defer { ptr = p.pointee.ifa_next }
-
-            let flags = UInt32(p.pointee.ifa_flags)
-            let name = String(cString: p.pointee.ifa_name)
-            guard let addr = p.pointee.ifa_addr else { continue }
-            guard addr.pointee.sa_family == UInt8(AF_LINK) else { continue }
-            guard InterfaceCounterPolicy.shouldInclude(name: name, flags: flags) else { continue }
-            guard let rawData = p.pointee.ifa_data else { continue }
-
-            let ifData = rawData.assumingMemoryBound(to: if_data.self)
-            let ib = ifData.pointee.ifi_ibytes
-            let ob = ifData.pointee.ifi_obytes
-
-            if result[name] == nil {
-                result[name] = (ib, ob)
-            }
-        }
-
-        return result
-    }
-
-    nonisolated static func deltaBytes(previous: [String: (UInt32, UInt32)], current: [String: (UInt32, UInt32)]) -> (in: UInt64, out: UInt64) {
-        var sumIn: UInt64 = 0
-        var sumOut: UInt64 = 0
-        for (name, cur) in current {
-            guard let prev = previous[name] else { continue }
-            sumIn &+= unsignedDelta32(previous: prev.0, current: cur.0)
-            sumOut &+= unsignedDelta32(previous: prev.1, current: cur.1)
-        }
-        return (sumIn, sumOut)
-    }
-
-    /// 32 位计数器回绕安全的增量
-    private nonisolated static func unsignedDelta32(previous: UInt32, current: UInt32) -> UInt64 {
-        if current >= previous {
-            return UInt64(current &- previous)
-        }
-        return UInt64(current) + UInt64(UInt32.max) - UInt64(previous) + 1
-    }
+struct SpeedDisplayState: Equatable, Sendable {
+    var downloadBps: Double = 0
+    var uploadBps: Double = 0
+    var lastError: String?
+    var lastUpdate: Date?
 }
 
 // MARK: - 门面
 
-@Observable
-@MainActor
-final class NetworkSpeedMonitor {
+final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
     static let shared = NetworkSpeedMonitor()
 
     private static let defaultsKey = "NetMeter.SpeedSamplingBackend"
 
-    /// 下行（本机接收）
-    private(set) var downloadBps: Double = 0
-    /// 上行（本机发送）
-    private(set) var uploadBps: Double = 0
-    private(set) var lastError: String?
-    private(set) var lastUpdate: Date?
+    /// 菜单栏 / SwiftUI 共用一份展示状态；仅在主队列写入以触发 objectWillChange
+    @Published private(set) var displayState = SpeedDisplayState()
+
+    var downloadBps: Double { displayState.downloadBps }
+    var uploadBps: Double { displayState.uploadBps }
+    var lastError: String? { displayState.lastError }
+    var lastUpdate: Date? { displayState.lastUpdate }
 
     /// 与 nettop -s 或接口轮询间隔一致；菜单栏约 2s
-    var sampleIntervalSeconds: Double = 2 {
-        didSet {
-            if loopTask != nil { start() }
+    var sampleIntervalSeconds: Double {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _sampleIntervalSeconds
+        }
+        set {
+            lock.lock()
+            _sampleIntervalSeconds = newValue
+            lock.unlock()
+            scheduleRestartLoopFromMain()
         }
     }
 
     var backend: SpeedSamplingBackend {
-        didSet {
-            UserDefaults.standard.set(backend.rawValue, forKey: Self.defaultsKey)
-            if loopTask != nil { start() }
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _backend
+        }
+        set {
+            lock.lock()
+            _backend = newValue
+            lock.unlock()
+            preferences.set(newValue.rawValue, forKey: Self.defaultsKey)
+            scheduleRestartLoopFromMain()
         }
     }
 
+    private let preferences: UserDefaults
+    private let lock = NSLock()
+    private var _backend: SpeedSamplingBackend
+    private var _sampleIntervalSeconds: Double = 2
     private var loopTask: Task<Void, Never>?
 
-    init() {
-        let raw = UserDefaults.standard.string(forKey: Self.defaultsKey)
-        self.backend = SpeedSamplingBackend(rawValue: raw ?? "") ?? .interfaceCounters
+    init(userDefaults: UserDefaults = .standard) {
+        self.preferences = userDefaults
+        let raw = userDefaults.string(forKey: Self.defaultsKey)
+        self._backend = SpeedSamplingBackend(rawValue: raw ?? "") ?? .interfaceCounters
     }
 
     func start() {
-        loopTask?.cancel()
-        loopTask = Task { await self.runLoop() }
+        scheduleRestartLoopFromMain()
     }
 
     func stop() {
@@ -164,76 +114,180 @@ final class NetworkSpeedMonitor {
         loopTask = nil
     }
 
-    private func runLoop() async {
-        switch backend {
-        case .interfaceCounters:
-            await runInterfaceCountersLoop()
-        case .nettop:
-            await runNettopLoop()
+    /// 在主线程安排重启采样环（start / backend / interval 变更）
+    private func scheduleRestartLoopFromMain() {
+        if Thread.isMainThread {
+            restartLoopLocked()
+        } else {
+            DispatchQueue.main.async { [weak self] in self?.restartLoopLocked() }
         }
     }
 
-    private func runNettopLoop() async {
+    private func restartLoopLocked() {
+        loopTask?.cancel()
+        loopTask = Task.detached(priority: .utility) { [weak self] in
+            await self?.runSamplingLoop()
+        }
+    }
+
+    private func publishDisplayOnMain(_ state: SpeedDisplayState) {
+        DispatchQueue.main.async { [weak self] in
+            self?.displayState = state
+        }
+    }
+
+    private func runSamplingLoop() async {
         while !Task.isCancelled {
-            let interval = sampleIntervalSeconds
-            do {
-                let parsed = try await Task.detached(priority: .utility) {
-                    try NetTopSpeedSampler.runNettopSync(intervalSeconds: interval)
-                }.value
-                downloadBps = parsed.downloadBps
-                uploadBps = parsed.uploadBps
-                lastError = nil
-                lastUpdate = Date()
-            } catch is CancellationError {
-                break
-            } catch {
-                lastError = error.localizedDescription
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            let (backendNow, interval) = lock.withLock {
+                (_backend, max(_sampleIntervalSeconds, 0.2))
+            }
+
+            switch backendNow {
+            case .interfaceCounters:
+                await runInterfaceCountersPass()
+            case .nettop:
+                await runNettopPass(interval: interval)
             }
         }
     }
 
-    private func runInterfaceCountersLoop() async {
+    private func runNettopPass(interval: Double) async {
+        do {
+            let parsed = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<(Double, Double), Error>) in
+                DispatchQueue.global(qos: .utility).async {
+                    do {
+                        let v = try NetTopSpeedSampler.runNettopSync(intervalSeconds: interval)
+                        cont.resume(returning: (v.downloadBps, v.uploadBps))
+                    } catch {
+                        cont.resume(throwing: error)
+                    }
+                }
+            }
+            publishDisplayOnMain(SpeedDisplayState(
+                downloadBps: parsed.0,
+                uploadBps: parsed.1,
+                lastError: nil,
+                lastUpdate: Date()
+            ))
+        } catch is CancellationError {
+            return
+        } catch {
+            let keep = await MainActor.run { [weak self] in
+                self?.displayState ?? SpeedDisplayState()
+            }
+            publishDisplayOnMain(SpeedDisplayState(
+                downloadBps: keep.downloadBps,
+                uploadBps: keep.uploadBps,
+                lastError: error.localizedDescription,
+                lastUpdate: Date()
+            ))
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+    }
+
+    private func runInterfaceCountersPass() async {
         var previousSnapshot: [String: (UInt32, UInt32)]?
         var previousTime: Date?
+        var idleStreak = 0
 
         while !Task.isCancelled {
-            let interval = sampleIntervalSeconds
+            if Task.isCancelled { break }
+
+            let interval = lock.withLock { max(_sampleIntervalSeconds, 0.2) }
 
             do {
-                let snap = try await Task.detached(priority: .utility) {
-                    try InterfaceCounterSampler.snapshotTotals()
-                }.value
+                let snap = try await snapshotOnUtilityQueue()
                 let tAfter = Date()
 
                 if let prev = previousSnapshot, let t0 = previousTime {
                     let dt = tAfter.timeIntervalSince(t0)
                     let (dIn, dOut) = InterfaceCounterSampler.deltaBytes(previous: prev, current: snap)
+                    let active = dIn > 0 || dOut > 0
+                    if active {
+                        idleStreak = 0
+                    } else {
+                        idleStreak += 1
+                    }
+
                     if dt > 0.05 {
-                        downloadBps = Double(dIn) / dt
-                        uploadBps = Double(dOut) / dt
+                        publishDisplayOnMain(SpeedDisplayState(
+                            downloadBps: Double(dIn) / dt,
+                            uploadBps: Double(dOut) / dt,
+                            lastError: nil,
+                            lastUpdate: tAfter
+                        ))
                     }
                 } else {
-                    downloadBps = 0
-                    uploadBps = 0
+                    idleStreak = 0
+                    publishDisplayOnMain(SpeedDisplayState(
+                        downloadBps: 0,
+                        uploadBps: 0,
+                        lastError: nil,
+                        lastUpdate: tAfter
+                    ))
                 }
 
                 previousSnapshot = snap
                 previousTime = tAfter
-                lastError = nil
-                lastUpdate = tAfter
             } catch is CancellationError {
                 break
             } catch {
-                lastError = error.localizedDescription
+                let keep = await MainActor.run { [weak self] in
+                    self?.displayState ?? SpeedDisplayState()
+                }
+                publishDisplayOnMain(SpeedDisplayState(
+                    downloadBps: keep.downloadBps,
+                    uploadBps: keep.uploadBps,
+                    lastError: error.localizedDescription,
+                    lastUpdate: Date()
+                ))
             }
 
-            let ns = UInt64(max(interval, 0.2) * 1_000_000_000)
+            var sleepSec = interval
+            if idleStreak >= 3 {
+                sleepSec = min(8, interval * 2)
+            }
+            let sleepClamped = max(0.2, min(sleepSec, 60))
+            let ns = UInt64(sleepClamped * 1_000_000_000)
             do {
                 try await Task.sleep(nanoseconds: ns)
             } catch {
                 break
             }
+
+            let stillCounters = lock.withLock { _backend == .interfaceCounters }
+            if !stillCounters { break }
         }
+    }
+
+    private nonisolated static func takeSnapshot() throws -> [String: (UInt32, UInt32)] {
+        try InterfaceCounterSampler.snapshotTotals()
+    }
+
+    private func snapshotOnUtilityQueue() async throws -> [String: (UInt32, UInt32)] {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[String: (UInt32, UInt32)], Error>) in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    let s = try Self.takeSnapshot()
+                    cont.resume(returning: s)
+                } catch {
+                    cont.resume(throwing: error)
+                }
+            }
+        }
+    }
+}
+
+private extension NSLock {
+    func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock()
+        defer { unlock() }
+        return try body()
+    }
+
+    func withLock<T>(_ body: () -> T) -> T {
+        lock()
+        defer { unlock() }
+        return body()
     }
 }
