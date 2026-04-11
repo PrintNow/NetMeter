@@ -31,6 +31,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         static let height: CGFloat = 72
     }
 
+    /// 菜单栏箭头与速率间距（须为正，避免 NSTextField 与数字重叠）
+    private enum MenuBarTrafficLayout {
+        static let arrowToSpeedSpacing: CGFloat = 3
+    }
+
     private var statusItem: NSStatusItem?
     private weak var monitor: NetTopSpeedMonitor?
     private weak var labelUp: NSTextField?
@@ -54,80 +59,76 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         button.imagePosition = .noImage
         button.title = ""
 
+        // Unicode 箭头 + 速率；不用负间距（NSTextField 自带边距，负值会与数字重叠）
         let root = NSStackView()
-        root.orientation = .horizontal
-        root.spacing = 3
-        root.alignment = .centerY
-        // 水平方向填满状态按钮，多余宽度交给低 hugging 的子视图（文本列），整体靠右排布
-        root.distribution = .fill
+        root.orientation = .vertical
+        root.spacing = 0
+        root.alignment = .trailing
 
-        let iconView = NSImageView()
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.contentTintColor = .labelColor
-        iconView.imageScaling = .scaleProportionallyUpOrDown
-        // 是否使用资源中的瘦高 SVG（与下方宽高比约束一致）
-        let usesTrafficSVG: Bool
-        if let img = NSImage(named: "MenuBarTrafficArrows") {
-            iconView.image = img
-            usesTrafficSVG = true
-        } else if let img = NSImage(systemSymbolName: "arrow.up.and.down", accessibilityDescription: nil) {
-            // 兜底用偏细字重，接近矢量版的细线观感
-            let sym = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
-            iconView.image = img.withSymbolConfiguration(sym)
-            usesTrafficSVG = false
-        } else {
-            usesTrafficSVG = false
-        }
-        iconView.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        let rowUp = NSStackView()
+        rowUp.orientation = .horizontal
+        rowUp.spacing = MenuBarTrafficLayout.arrowToSpeedSpacing
+        rowUp.alignment = .centerY
+        rowUp.distribution = .fill
 
-        let col = NSStackView()
-        col.orientation = .vertical
-        col.spacing = 0
-        // 两行右缘对齐；配合低 hugging 让本列吃掉图标右侧剩余宽度，数字贴近菜单栏右侧
-        col.alignment = .trailing
-        col.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let rowDown = NSStackView()
+        rowDown.orientation = .horizontal
+        rowDown.spacing = MenuBarTrafficLayout.arrowToSpeedSpacing
+        rowDown.alignment = .centerY
+        rowDown.distribution = .fill
 
+        // ↗/↙ 旋转 ±45°，视觉上为正上/正下
+        let arrowUp = makeRotatedArrowView(character: "↗", rotationDegrees: -45)
+        let arrowDown = makeRotatedArrowView(character: "↙", rotationDegrees: -45)
         let up = makeSpeedLabel()
         let down = makeSpeedLabel()
-        col.addArrangedSubview(up)
-        col.addArrangedSubview(down)
+        rowUp.addArrangedSubview(arrowUp)
+        rowUp.addArrangedSubview(up)
+        rowDown.addArrangedSubview(arrowDown)
+        rowDown.addArrangedSubview(down)
         labelUp = up
         labelDown = down
 
-        root.addArrangedSubview(iconView)
-        root.addArrangedSubview(col)
+        // 顶 1pt 占位，与参考里 Spacer(height: 1) 一致，微调垂直位置
+        let topInset = NSView()
+        topInset.translatesAutoresizingMaskIntoConstraints = false
+        topInset.heightAnchor.constraint(equalToConstant: 1).isActive = true
+        root.addArrangedSubview(topInset)
+        root.addArrangedSubview(rowUp)
+        root.addArrangedSubview(rowDown)
+        root.setCustomSpacing(-1.5, after: rowUp)
 
         root.translatesAutoresizingMaskIntoConstraints = false
         button.addSubview(root)
 
-        var rootConstraints: [NSLayoutConstraint] = [
+        NSLayoutConstraint.activate([
             root.centerYAnchor.constraint(equalTo: button.centerYAnchor),
             root.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 3),
             root.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -3),
-        ]
-        // SVG viewBox 12×18（约 2:3，对齐参考双箭头比例）；高度略低于文字列，避免图标显得笨重
-        if usesTrafficSVG {
-            let svgAspect: CGFloat = 12 / 18
-            rootConstraints.append(contentsOf: [
-                iconView.heightAnchor.constraint(equalTo: col.heightAnchor, multiplier: 0.82),
-                iconView.widthAnchor.constraint(equalTo: iconView.heightAnchor, multiplier: svgAspect),
-            ])
-        } else if iconView.image != nil {
-            rootConstraints.append(contentsOf: [
-                iconView.widthAnchor.constraint(equalToConstant: 12),
-                iconView.heightAnchor.constraint(lessThanOrEqualTo: col.heightAnchor),
-            ])
-        }
-        NSLayoutConstraint.activate(rootConstraints)
+        ])
 
         item.menu = buildMenu()
         updateLabels()
         bindObservation(monitor)
     }
 
+    /// 斜向箭头旋转为正上/正下（与 SpeedHUDView 一致）
+    private func makeRotatedArrowView(character: String, rotationDegrees: Double) -> NSView {
+        let root = Text(character)
+            .font(.system(size: 10))
+            .foregroundStyle(Color(nsColor: .labelColor))
+            .rotationEffect(.degrees(rotationDegrees))
+            .frame(width: 15, height: 15)
+        let host = NSHostingView(rootView: root)
+        host.translatesAutoresizingMaskIntoConstraints = false
+        host.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        host.setContentHuggingPriority(.defaultHigh, for: .vertical)
+        return host
+    }
+
     private func makeSpeedLabel() -> NSTextField {
         let f = NSTextField(labelWithString: "—")
-        f.font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        f.font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
         f.textColor = .labelColor
         f.alignment = .right
         f.maximumNumberOfLines = 1
