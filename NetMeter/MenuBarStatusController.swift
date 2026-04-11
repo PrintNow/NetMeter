@@ -89,6 +89,14 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         labelUp = up
         labelDown = down
 
+        let speedW = Self.menuBarSpeedLabelWidth()
+        up.translatesAutoresizingMaskIntoConstraints = false
+        down.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            up.widthAnchor.constraint(equalToConstant: speedW),
+            down.widthAnchor.constraint(equalToConstant: speedW),
+        ])
+
         // 顶 1pt 占位，与参考里 Spacer(height: 1) 一致，微调垂直位置
         let topInset = NSView()
         topInset.translatesAutoresizingMaskIntoConstraints = false
@@ -124,6 +132,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         host.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         host.setContentHuggingPriority(.defaultHigh, for: .vertical)
         return host
+    }
+
+    /// 与 `makeSpeedLabel` 字体一致；按 `999.9 M/s` 估宽（再高会截断，日常足够）
+    private static func menuBarSpeedLabelWidth() -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+        let sample = "999.9 M/s" as NSString
+        return ceil(sample.size(withAttributes: [.font: font]).width)
     }
 
     private func makeSpeedLabel() -> NSTextField {
@@ -178,7 +193,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         }
         if hudWindow == nil {
             let size = NSSize(width: HUDWindowMetrics.width, height: HUDWindowMetrics.height)
-            let root = SpeedHUDView()
+            let root = SpeedHUDRoot()
                 .environment(NetTopSpeedMonitor.shared)
             let hosting = NSHostingController(rootView: root)
             hosting.view.frame = CGRect(origin: .zero, size: size)
@@ -210,8 +225,9 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     private func updateLabels() {
         guard let monitor else { return }
-        labelUp?.stringValue = SpeedFormatter.menuBarStyledSpeed(bytesPerSecond: monitor.uploadBps)
-        labelDown?.stringValue = SpeedFormatter.menuBarStyledSpeed(bytesPerSecond: monitor.downloadBps)
+        let lines = MenuBarSpeedLines.make(uploadBps: monitor.uploadBps, downloadBps: monitor.downloadBps)
+        labelUp?.stringValue = lines.upload
+        labelDown?.stringValue = lines.download
     }
 
     /// 监听 @Observable 的速率变化并刷新标签

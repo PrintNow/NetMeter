@@ -22,8 +22,22 @@ struct FloatingWindowConfigurator: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-struct SpeedHUDView: View {
+/// 从 Monitor 映射为 `MenuBarSpeedLines`，再交给纯展示视图
+struct SpeedHUDRoot: View {
     @Environment(NetTopSpeedMonitor.self) private var monitor
+
+    var body: some View {
+        SpeedHUDView(
+            lines: MenuBarSpeedLines.make(uploadBps: monitor.uploadBps, downloadBps: monitor.downloadBps),
+            lastError: monitor.lastError
+        )
+    }
+}
+
+/// 仅负责布局与样式；速率字符串由外部传入
+struct SpeedHUDView: View {
+    let lines: MenuBarSpeedLines
+    let lastError: String?
 
     var body: some View {
         // ↗/↙ 旋转 ±45°，与菜单栏一致呈正上/正下
@@ -34,20 +48,20 @@ struct SpeedHUDView: View {
                     .font(rowFont)
                     .rotationEffect(.degrees(-45))
                     .frame(width: 16, height: 16)
-                Text(SpeedFormatter.menuBarStyledSpeed(bytesPerSecond: monitor.uploadBps))
+                Text(lines.upload)
                     .font(rowFont)
                     .monospacedDigit()
             }
             HStack(spacing: 4) {
                 Text("↙")
                     .font(rowFont)
-                    .rotationEffect(.degrees(45))
+                    .rotationEffect(.degrees(-45))
                     .frame(width: 16, height: 16)
-                Text(SpeedFormatter.menuBarStyledSpeed(bytesPerSecond: monitor.downloadBps))
+                Text(lines.download)
                     .font(rowFont)
                     .monospacedDigit()
             }
-            if let err = monitor.lastError {
+            if let err = lastError {
                 Text(err)
                     .font(.system(size: 9))
                     .foregroundStyle(.red)
