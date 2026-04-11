@@ -46,6 +46,7 @@ final class MenuBarStatusController: NSObject {
     private var widthConstraintDown: NSLayoutConstraint?
     private var appliedSpeedLabelWidth: CGFloat = 0
     private var shrinkWidthWorkItem: DispatchWorkItem?
+    private var aboutWindow: NSWindow?
 
     private override init() {
         super.init()
@@ -163,10 +164,34 @@ final class MenuBarStatusController: NSObject {
 
     private func buildMenu() -> NSMenu {
         let m = NSMenu()
+        let about = NSMenuItem(title: "关于 NetMeter…", action: #selector(showAboutPanel), keyEquivalent: "")
+        about.target = self
+        m.addItem(about)
+        m.addItem(.separator())
         let quit = NSMenuItem(title: "退出 NetMeter", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         m.addItem(quit)
         return m
+    }
+
+    @objc private func showAboutPanel() {
+        NSApp.activate(ignoringOtherApps: true)
+        if aboutWindow == nil {
+            let w = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 380, height: 420),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            w.title = "关于 NetMeter"
+            w.center()
+            w.isReleasedWhenClosed = false
+            let host = NSHostingController(rootView: AboutView())
+            host.sizingOptions = [.minSize, .maxSize]
+            w.contentViewController = host
+            aboutWindow = w
+        }
+        aboutWindow?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func quitApp() {
