@@ -2,11 +2,11 @@
 //  MenuBarSpeedPresentation.swift
 //  NetMeter
 //
-//  菜单栏 / 悬浮窗共用：纯展示数据，无 UI 依赖。
+//  菜单栏定宽速率文案；悬浮窗若后续再做可复用此层。
 
 import Foundation
 
-/// 菜单栏与 HUD 的两行定宽速率文案（由 bps 换算，与 View 解耦）
+/// 菜单栏两行定宽速率文案（由 bps 换算，与 View 解耦）
 struct MenuBarSpeedLines: Equatable {
     let upload: String
     let download: String

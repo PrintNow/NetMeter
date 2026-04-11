@@ -7,7 +7,6 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(NetTopSpeedMonitor.self) private var monitor
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -35,11 +34,6 @@ struct ContentView: View {
                     .font(.callout)
                     .foregroundStyle(.red)
             }
-
-            Button("打开网速悬浮窗") {
-                openWindow(id: "speedHud")
-            }
-            .keyboardShortcut("h", modifiers: [.command])
 
             Text("数据来自 nettop 进程汇总（约每 \(String(format: "%.1f", monitor.sampleIntervalSeconds)) 秒刷新）。")
                 .font(.caption)
