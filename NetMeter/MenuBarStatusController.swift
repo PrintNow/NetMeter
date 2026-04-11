@@ -66,6 +66,7 @@ final class MenuBarStatusController: NSObject {
 
         button.imagePosition = .noImage
         button.title = ""
+        button.toolTip = NetMeterDisplayName.resolved
 
         // Unicode 箭头 + 速率；不用负间距（NSTextField 自带边距，负值会与数字重叠）
         let root = NSStackView()
@@ -164,11 +165,11 @@ final class MenuBarStatusController: NSObject {
 
     private func buildMenu() -> NSMenu {
         let m = NSMenu()
-        let about = NSMenuItem(title: "关于 NetMeter…", action: #selector(showAboutPanel), keyEquivalent: "")
+        let about = NSMenuItem(title: "关于 \(NetMeterDisplayName.resolved)…", action: #selector(showAboutPanel), keyEquivalent: "")
         about.target = self
         m.addItem(about)
         m.addItem(.separator())
-        let quit = NSMenuItem(title: "退出 NetMeter", action: #selector(quitApp), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "退出 \(NetMeterDisplayName.resolved)", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         m.addItem(quit)
         return m
@@ -183,7 +184,6 @@ final class MenuBarStatusController: NSObject {
                 backing: .buffered,
                 defer: false
             )
-            w.title = "关于 NetMeter"
             w.center()
             w.isReleasedWhenClosed = false
             let host = NSHostingController(rootView: AboutView())
@@ -191,6 +191,8 @@ final class MenuBarStatusController: NSObject {
             w.contentViewController = host
             aboutWindow = w
         }
+        // 每次打开同步标题（避免复用窗口时仍为旧文案）
+        aboutWindow?.title = "关于 \(NetMeterDisplayName.resolved)"
         aboutWindow?.makeKeyAndOrderFront(nil)
     }
 

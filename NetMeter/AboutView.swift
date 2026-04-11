@@ -40,7 +40,7 @@ struct AboutView: View {
                 Spacer(minLength: 0)
             }
 
-            Text("NetMeter")
+            Text(NetMeterDisplayName.resolved)
                 .font(.title.weight(.bold))
 
             VStack(alignment: .leading, spacing: 4) {

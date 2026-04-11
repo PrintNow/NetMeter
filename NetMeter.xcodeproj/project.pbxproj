@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		14D3251F2F896CDE00C5E2A0 /* NetMeter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NetMeter.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		14D3251F2F896CDE00C5E2A0 /* NetMeterDebug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = NetMeterDebug.app; path = NetMeter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,7 +40,7 @@
 		14D325202F896CDE00C5E2A0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				14D3251F2F896CDE00C5E2A0 /* NetMeter.app */,
+				14D3251F2F896CDE00C5E2A0 /* NetMeterDebug.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -67,7 +67,7 @@
 			packageProductDependencies = (
 			);
 			productName = NetMeter;
-			productReference = 14D3251F2F896CDE00C5E2A0 /* NetMeter.app */;
+			productReference = 14D3251F2F896CDE00C5E2A0 /* NetMeterDebug.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -255,6 +255,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "NetMeter (Debug)";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -262,8 +264,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OBJROOT = "$(SRCROOT)/.derived.noindex/Intermediates.noindex";
-				SYMROOT = "$(SRCROOT)/.derived.noindex/Products";
-				PRODUCT_BUNDLE_IDENTIFIER = cc.nowtime.NetMeter;
+				PRODUCT_BUNDLE_IDENTIFIER = cc.nowtime.NetMeter.debug;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -272,6 +273,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				SYMROOT = "$(SRCROOT)/.derived.noindex/Products";
 			};
 			name = Debug;
 		};
@@ -287,6 +289,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
