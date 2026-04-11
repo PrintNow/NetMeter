@@ -2,9 +2,11 @@
 
 macOS 菜单栏网速显示（基于 nettop 采样）。
 
+**系统要求：macOS 15.0（Sequoia）或更高版本**（SwiftUI `defaultLaunchBehavior(.suppressed)` 等 API 所限）。
+
 ## 从源码运行 / 构建
 
-- 需要 **Xcode**（与工程 `MACOSX_DEPLOYMENT_TARGET` 匹配的 SDK）。
+- 需要 **Xcode**，且本机 SDK 需支持上述最低系统版本（工程内 `MACOSX_DEPLOYMENT_TARGET = 15.0`）。
 - 用 Xcode 打开 `NetMeter.xcodeproj`，选择 `NetMeter` scheme 运行即可。
 
 ### Debug 构建与 Spotlight
