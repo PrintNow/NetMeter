@@ -176,7 +176,7 @@ final class MenuBarStatusController: NSObject {
             }
         }
         t.tolerance = interval * 0.2
-        RunLoop.main.add(t, forMode: .common)
+        RunLoop.main.add(t, forMode: .default)
         menuBarRefreshTimer = t
     }
 
@@ -399,5 +399,9 @@ final class MenuBarStatusController: NSObject {
 extension MenuBarStatusController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         syncMenuChecks(in: menu)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        updateLabels()
     }
 }
