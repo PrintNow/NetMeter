@@ -196,7 +196,6 @@ final class MenuBarStatusController: NSObject {
     }
 
     private enum MenuCopy {
-        static let dataSource = "数据来源"
         static let intervalOptions: [Double] = [1, 2, 3, 5, 10]
         static let interfaceMenuTag = 999
         static let autoInterfaceTag = 998
@@ -208,18 +207,6 @@ final class MenuBarStatusController: NSObject {
         about.target = self
         m.addItem(about)
         m.addItem(.separator())
-
-        // 数据来源
-        let sourceParent = NSMenuItem(title: MenuCopy.dataSource, action: nil, keyEquivalent: "")
-        let sourceSub = NSMenu()
-        for b in SpeedSamplingBackend.allCases {
-            let it = NSMenuItem(title: b.localizedTitle, action: #selector(selectSamplingBackend(_:)), keyEquivalent: "")
-            it.target = self
-            it.tag = b.menuItemTag
-            sourceSub.addItem(it)
-        }
-        sourceParent.submenu = sourceSub
-        m.addItem(sourceParent)
 
         // 刷新间隔
         let intervalParent = NSMenuItem(title: "刷新间隔", action: nil, keyEquivalent: "")
@@ -246,14 +233,6 @@ final class MenuBarStatusController: NSObject {
         quit.target = self
         m.addItem(quit)
         return m
-    }
-
-    @objc private func selectSamplingBackend(_ sender: NSMenuItem) {
-        guard let b = SpeedSamplingBackend.fromMenuItemTag(sender.tag) else { return }
-        monitor?.backend = b
-        if let m = monitor {
-            startMenuBarRefreshTimer(for: m)
-        }
     }
 
     @objc private func selectRefreshInterval(_ sender: NSMenuItem) {
@@ -399,18 +378,9 @@ final class MenuBarStatusController: NSObject {
         }
     }
 
-    /// 打开菜单前同步所有子菜单勾选状态
+    /// 打开菜单前同步子菜单勾选状态
     private func syncMenuChecks(in menu: NSMenu) {
         guard let monitor else { return }
-
-        // 同步数据来源
-        if let idx = menu.items.firstIndex(where: { $0.title == MenuCopy.dataSource }),
-           let sub = menu.items[idx].submenu {
-            for it in sub.items {
-                guard let b = SpeedSamplingBackend.fromMenuItemTag(it.tag) else { continue }
-                it.state = b == monitor.backend ? .on : .off
-            }
-        }
 
         // 同步刷新间隔
         if let idx = menu.items.firstIndex(where: { $0.title == "刷新间隔" }),

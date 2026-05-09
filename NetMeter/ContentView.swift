@@ -35,7 +35,7 @@ struct ContentView: View {
                     .foregroundStyle(.red)
             }
 
-            Text("数据来源：\(monitor.backend.localizedTitle)。\(monitor.backend.statusLineHint)。约每 \(String(format: "%.1f", monitor.sampleIntervalSeconds)) 秒刷新。")
+            Text("内核网络接口字节计数差分（低开销）。约每 \(String(format: "%.1f", monitor.sampleIntervalSeconds)) 秒刷新。")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
