@@ -62,6 +62,8 @@ final class InterfaceMonitor: ObservableObject {
             let name = path.availableInterfaces.first?.name
             DispatchQueue.main.async {
                 guard let self else { return }
+                // 仅在默认接口变化时更新，避免重复触发 @Published
+                guard name != self.defaultInterface else { return }
                 self.defaultInterface = name
                 self.refreshAvailableInterfaces()
                 // 自动模式下跟随默认路由
@@ -124,7 +126,10 @@ final class InterfaceMonitor: ObservableObject {
             if a.isVPN != b.isVPN { return !a.isVPN }
             return a.name < b.name
         }
-        availableInterfaces = result
+        // 仅在列表变化时更新，避免重复触发 @Published 导致 SwiftUI 重渲染
+        if result.map(\.name) != availableInterfaces.map(\.name) {
+            availableInterfaces = result
+        }
     }
 
     private nonisolated static func friendlyType(for name: String) -> String {
