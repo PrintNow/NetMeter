@@ -5,6 +5,7 @@
 //  使用 NSStatusItem + AppKit 布局，在系统菜单栏厚度内垂直居中，避免 SwiftUI MenuBarExtra 裁切双行文字。
 
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -48,6 +49,8 @@ final class MenuBarStatusController: NSObject {
     private var aboutWindow: NSWindow?
     /// 定时拉取速率刷新菜单栏，避免 withObservationTracking 高频闭环占满 CPU
     private var menuBarRefreshTimer: Timer?
+    private var cancellables = Set<AnyCancellable>()
+    private weak var interfaceMenu: NSMenu?
 
     private override init() {
         super.init()
@@ -56,6 +59,7 @@ final class MenuBarStatusController: NSObject {
     deinit {
         shrinkWidthWorkItem?.cancel()
         menuBarRefreshTimer?.invalidate()
+        cancellables.removeAll()
     }
 
     func install(monitor: NetworkSpeedMonitor) {
@@ -136,6 +140,14 @@ final class MenuBarStatusController: NSObject {
         item.menu = menu
         updateLabels()
         startMenuBarRefreshTimer(for: monitor)
+
+        // 订阅接口列表变化，仅在接口真正变化时重建子菜单
+        monitor.interfaceMonitor.$availableInterfaces
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] interfaces in
+                self?.rebuildInterfaceSubmenu(interfaces: interfaces)
+            }
+            .store(in: &cancellables)
     }
 
     private func makeArrowLabel(isUpload: Bool) -> NSTextField {
@@ -226,6 +238,7 @@ final class MenuBarStatusController: NSObject {
         ifaceParent.tag = MenuCopy.interfaceMenuTag
         let ifaceSub = NSMenu()
         ifaceParent.submenu = ifaceSub
+        interfaceMenu = ifaceSub
         m.addItem(ifaceParent)
 
         m.addItem(.separator())
@@ -336,6 +349,56 @@ final class MenuBarStatusController: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + DynamicSpeedWidth.shrinkDelay, execute: work)
     }
 
+    /// 接口列表变化时重建接口子菜单（由 Combine 订阅触发，非 menuWillOpen）
+    private func rebuildInterfaceSubmenu(interfaces: [InterfaceInfo]) {
+        guard let sub = interfaceMenu else { return }
+        sub.removeAllItems()
+
+        let autoItem = NSMenuItem(
+            title: "自动（默认路由）",
+            action: #selector(selectInterface(_:)),
+            keyEquivalent: ""
+        )
+        autoItem.target = self
+        autoItem.tag = MenuCopy.autoInterfaceTag
+        sub.addItem(autoItem)
+
+        sub.addItem(.separator())
+
+        for iface in interfaces {
+            let it = NSMenuItem(
+                title: iface.displayName,
+                action: #selector(selectInterface(_:)),
+                keyEquivalent: ""
+            )
+            it.target = self
+            it.representedObject = iface.name
+            sub.addItem(it)
+        }
+
+        if interfaces.isEmpty {
+            let none = NSMenuItem(title: "未检测到接口", action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            sub.addItem(none)
+        }
+
+        // 重建后立即同步勾选状态
+        syncInterfaceMenuChecks()
+    }
+
+    /// 仅更新接口子菜单勾选状态（不重建）
+    private func syncInterfaceMenuChecks() {
+        guard let sub = interfaceMenu, let monitor else { return }
+        let currentSel = monitor.interfaceMonitor.selectedInterface
+        for it in sub.items {
+            if it.tag == MenuCopy.autoInterfaceTag {
+                it.state = currentSel == nil ? .on : .off
+            } else if let name = it.representedObject as? String {
+                it.state = name == currentSel ? .on : .off
+            }
+        }
+    }
+
     /// 打开菜单前同步所有子菜单勾选状态
     private func syncMenuChecks(in menu: NSMenu) {
         guard let monitor else { return }
@@ -358,44 +421,8 @@ final class MenuBarStatusController: NSObject {
             }
         }
 
-        // 同步监控接口
-        if let idx = menu.items.firstIndex(where: { $0.tag == MenuCopy.interfaceMenuTag }),
-           let sub = menu.items[idx].submenu {
-            sub.removeAllItems()
-
-            // 自动选项
-            let autoItem = NSMenuItem(
-                title: "自动（默认路由）",
-                action: #selector(selectInterface(_:)),
-                keyEquivalent: ""
-            )
-            autoItem.target = self
-            autoItem.tag = MenuCopy.autoInterfaceTag
-            autoItem.state = monitor.interfaceMonitor.selectedInterface == nil ? .on : .off
-            sub.addItem(autoItem)
-
-            sub.addItem(.separator())
-
-            // 动态接口列表
-            let currentSel = monitor.interfaceMonitor.selectedInterface
-            for iface in monitor.interfaceMonitor.availableInterfaces {
-                let it = NSMenuItem(
-                    title: iface.displayName,
-                    action: #selector(selectInterface(_:)),
-                    keyEquivalent: ""
-                )
-                it.target = self
-                it.representedObject = iface.name
-                it.state = iface.name == currentSel ? .on : .off
-                sub.addItem(it)
-            }
-
-            if monitor.interfaceMonitor.availableInterfaces.isEmpty {
-                let none = NSMenuItem(title: "未检测到接口", action: nil, keyEquivalent: "")
-                none.isEnabled = false
-                sub.addItem(none)
-            }
-        }
+        // 同步监控接口（仅更新勾选，不重建子菜单）
+        syncInterfaceMenuChecks()
     }
 }
 
