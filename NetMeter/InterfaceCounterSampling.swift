@@ -32,6 +32,11 @@ enum InterfaceCounterPolicy {
 enum InterfaceCounterSampler {
     /// 各接口名 -> (ifi_ibytes, ifi_obytes)，内核为 32 位累计值
     nonisolated static func snapshotTotals() throws -> [String: (UInt32, UInt32)] {
+        try snapshotTotals(selectedInterface: nil)
+    }
+
+    /// 按选定接口过滤；selectedInterface 为 nil 时返回所有符合策略的接口
+    nonisolated static func snapshotTotals(selectedInterface: String?) throws -> [String: (UInt32, UInt32)] {
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0, let head = ifaddr else {
             throw InterfaceCounterSamplerError.getifaddrsFailed(code: errno)
@@ -48,6 +53,7 @@ enum InterfaceCounterSampler {
             guard let addr = p.pointee.ifa_addr else { continue }
             guard addr.pointee.sa_family == UInt8(AF_LINK) else { continue }
             guard InterfaceCounterPolicy.shouldInclude(name: name, flags: flags) else { continue }
+            if let sel = selectedInterface, name != sel { continue }
             guard let rawData = p.pointee.ifa_data else { continue }
 
             let ifData = rawData.assumingMemoryBound(to: if_data.self)

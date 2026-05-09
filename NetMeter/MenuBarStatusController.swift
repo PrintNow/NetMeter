@@ -159,7 +159,9 @@ final class MenuBarStatusController: NSObject {
         menuBarRefreshTimer?.invalidate()
         let interval = max(0.25, monitor.sampleIntervalSeconds)
         let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
-            self?.updateLabels()
+            MainActor.assumeIsolated {
+                self?.updateLabels()
+            }
         }
         t.tolerance = interval * 0.2
         RunLoop.main.add(t, forMode: .common)
@@ -183,6 +185,9 @@ final class MenuBarStatusController: NSObject {
 
     private enum MenuCopy {
         static let dataSource = "数据来源"
+        static let intervalOptions: [Double] = [1, 2, 3, 5, 10]
+        static let interfaceMenuTag = 999
+        static let autoInterfaceTag = 998
     }
 
     private func buildMenu() -> NSMenu {
@@ -192,16 +197,36 @@ final class MenuBarStatusController: NSObject {
         m.addItem(about)
         m.addItem(.separator())
 
+        // 数据来源
         let sourceParent = NSMenuItem(title: MenuCopy.dataSource, action: nil, keyEquivalent: "")
-        let sub = NSMenu()
+        let sourceSub = NSMenu()
         for b in SpeedSamplingBackend.allCases {
             let it = NSMenuItem(title: b.localizedTitle, action: #selector(selectSamplingBackend(_:)), keyEquivalent: "")
             it.target = self
             it.tag = b.menuItemTag
-            sub.addItem(it)
+            sourceSub.addItem(it)
         }
-        sourceParent.submenu = sub
+        sourceParent.submenu = sourceSub
         m.addItem(sourceParent)
+
+        // 刷新间隔
+        let intervalParent = NSMenuItem(title: "刷新间隔", action: nil, keyEquivalent: "")
+        let intervalSub = NSMenu()
+        for sec in MenuCopy.intervalOptions {
+            let it = NSMenuItem(title: "\(sec) 秒", action: #selector(selectRefreshInterval(_:)), keyEquivalent: "")
+            it.target = self
+            it.tag = Int(sec * 100)  // 用 tag 存储间隔值（×100 避免浮点精度问题）
+            intervalSub.addItem(it)
+        }
+        intervalParent.submenu = intervalSub
+        m.addItem(intervalParent)
+
+        // 监控接口
+        let ifaceParent = NSMenuItem(title: "监控接口", action: nil, keyEquivalent: "")
+        ifaceParent.tag = MenuCopy.interfaceMenuTag
+        let ifaceSub = NSMenu()
+        ifaceParent.submenu = ifaceSub
+        m.addItem(ifaceParent)
 
         m.addItem(.separator())
         let quit = NSMenuItem(title: "退出 \(NetMeterDisplayName.resolved)", action: #selector(quitApp), keyEquivalent: "q")
@@ -215,6 +240,22 @@ final class MenuBarStatusController: NSObject {
         monitor?.backend = b
         if let m = monitor {
             startMenuBarRefreshTimer(for: m)
+        }
+    }
+
+    @objc private func selectRefreshInterval(_ sender: NSMenuItem) {
+        let sec = Double(sender.tag) / 100.0
+        monitor?.sampleIntervalSeconds = sec
+        if let m = monitor {
+            startMenuBarRefreshTimer(for: m)
+        }
+    }
+
+    @objc private func selectInterface(_ sender: NSMenuItem) {
+        if sender.tag == MenuCopy.autoInterfaceTag {
+            monitor?.interfaceMonitor.selectedInterface = nil
+        } else if let name = sender.representedObject as? String {
+            monitor?.interfaceMonitor.selectedInterface = name
         }
     }
 
@@ -295,20 +336,71 @@ final class MenuBarStatusController: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + DynamicSpeedWidth.shrinkDelay, execute: work)
     }
 
-    /// 打开菜单前同步「数据来源」勾选状态
-    private func syncSamplingBackendMenuChecks(in menu: NSMenu) {
-        guard let current = monitor?.backend else { return }
-        guard let idx = menu.items.firstIndex(where: { $0.title == MenuCopy.dataSource }),
-              let sub = menu.items[idx].submenu else { return }
-        for it in sub.items {
-            guard let b = SpeedSamplingBackend.fromMenuItemTag(it.tag) else { continue }
-            it.state = b == current ? .on : .off
+    /// 打开菜单前同步所有子菜单勾选状态
+    private func syncMenuChecks(in menu: NSMenu) {
+        guard let monitor else { return }
+
+        // 同步数据来源
+        if let idx = menu.items.firstIndex(where: { $0.title == MenuCopy.dataSource }),
+           let sub = menu.items[idx].submenu {
+            for it in sub.items {
+                guard let b = SpeedSamplingBackend.fromMenuItemTag(it.tag) else { continue }
+                it.state = b == monitor.backend ? .on : .off
+            }
+        }
+
+        // 同步刷新间隔
+        if let idx = menu.items.firstIndex(where: { $0.title == "刷新间隔" }),
+           let sub = menu.items[idx].submenu {
+            let currentTag = Int(monitor.sampleIntervalSeconds * 100)
+            for it in sub.items {
+                it.state = it.tag == currentTag ? .on : .off
+            }
+        }
+
+        // 同步监控接口
+        if let idx = menu.items.firstIndex(where: { $0.tag == MenuCopy.interfaceMenuTag }),
+           let sub = menu.items[idx].submenu {
+            sub.removeAllItems()
+
+            // 自动选项
+            let autoItem = NSMenuItem(
+                title: "自动（默认路由）",
+                action: #selector(selectInterface(_:)),
+                keyEquivalent: ""
+            )
+            autoItem.target = self
+            autoItem.tag = MenuCopy.autoInterfaceTag
+            autoItem.state = monitor.interfaceMonitor.selectedInterface == nil ? .on : .off
+            sub.addItem(autoItem)
+
+            sub.addItem(.separator())
+
+            // 动态接口列表
+            let currentSel = monitor.interfaceMonitor.selectedInterface
+            for iface in monitor.interfaceMonitor.availableInterfaces {
+                let it = NSMenuItem(
+                    title: iface.displayName,
+                    action: #selector(selectInterface(_:)),
+                    keyEquivalent: ""
+                )
+                it.target = self
+                it.representedObject = iface.name
+                it.state = iface.name == currentSel ? .on : .off
+                sub.addItem(it)
+            }
+
+            if monitor.interfaceMonitor.availableInterfaces.isEmpty {
+                let none = NSMenuItem(title: "未检测到接口", action: nil, keyEquivalent: "")
+                none.isEnabled = false
+                sub.addItem(none)
+            }
         }
     }
 }
 
 extension MenuBarStatusController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
-        syncSamplingBackendMenuChecks(in: menu)
+        syncMenuChecks(in: menu)
     }
 }

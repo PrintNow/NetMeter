@@ -70,4 +70,23 @@ final class InterfaceCounterSamplingTests: XCTestCase {
         let snap = try InterfaceCounterSampler.snapshotTotals()
         XCTAssertFalse(snap.isEmpty, "本机应至少有一个符合条件的接口统计")
     }
+
+    func testSnapshotTotals_withSelectedInterface() throws {
+        // 先获取所有接口
+        let allSnap = try InterfaceCounterSampler.snapshotTotals()
+        guard let firstInterface = allSnap.keys.first else {
+            throw XCTSkip("本机无可用接口，跳过过滤测试")
+        }
+
+        // 只监控第一个接口
+        let filtered = try InterfaceCounterSampler.snapshotTotals(selectedInterface: firstInterface)
+        XCTAssertEqual(filtered.count, 1)
+        XCTAssertNotNil(filtered[firstInterface])
+    }
+
+    func testSnapshotTotals_nilSelectedReturnsAll() throws {
+        let all = try InterfaceCounterSampler.snapshotTotals(selectedInterface: nil)
+        let defaultAll = try InterfaceCounterSampler.snapshotTotals()
+        XCTAssertEqual(all.count, defaultAll.count)
+    }
 }
