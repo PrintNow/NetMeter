@@ -32,11 +32,14 @@ jobs:
 
       - name: Create zip
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ZIP_NAME="NetMeter-${VERSION}.zip"
           cd "$(dirname "$APP_PATH")"
-          zip -r "$GITHUB_WORKSPACE/NetMeter.zip" NetMeter.app
+          zip -r "$GITHUB_WORKSPACE/$ZIP_NAME" NetMeter.app
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: NetMeter.zip
+          files: ${{ env.ZIP_NAME }}
           generate_release_notes: true
