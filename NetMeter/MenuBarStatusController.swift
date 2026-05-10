@@ -5,7 +5,6 @@
 //  使用 NSStatusItem + AppKit 布局，在系统菜单栏厚度内垂直居中，避免 SwiftUI MenuBarExtra 裁切双行文字。
 
 import AppKit
-import Combine
 import SwiftUI
 
 @MainActor
@@ -49,8 +48,6 @@ final class MenuBarStatusController: NSObject {
     private var aboutWindow: NSWindow?
     /// 定时拉取速率刷新菜单栏，避免 withObservationTracking 高频闭环占满 CPU
     private var menuBarRefreshTimer: Timer?
-    private var cancellables = Set<AnyCancellable>()
-    private weak var interfaceMenu: NSMenu?
 
     private override init() {
         super.init()
@@ -59,7 +56,6 @@ final class MenuBarStatusController: NSObject {
     deinit {
         shrinkWidthWorkItem?.cancel()
         menuBarRefreshTimer?.invalidate()
-        cancellables.removeAll()
     }
 
     func install(monitor: NetworkSpeedMonitor) {
@@ -140,14 +136,6 @@ final class MenuBarStatusController: NSObject {
         item.menu = menu
         updateLabels()
         startMenuBarRefreshTimer(for: monitor)
-
-        // 订阅接口列表变化，仅在接口真正变化时重建子菜单
-        monitor.interfaceMonitor.$availableInterfaces
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] interfaces in
-                self?.rebuildInterfaceSubmenu(interfaces: interfaces)
-            }
-            .store(in: &cancellables)
     }
 
     private func makeArrowLabel(isUpload: Bool) -> NSTextField {
@@ -197,8 +185,6 @@ final class MenuBarStatusController: NSObject {
 
     private enum MenuCopy {
         static let intervalOptions: [Double] = [1, 2, 3, 5, 10]
-        static let interfaceMenuTag = 999
-        static let autoInterfaceTag = 998
     }
 
     private func buildMenu() -> NSMenu {
@@ -214,19 +200,11 @@ final class MenuBarStatusController: NSObject {
         for sec in MenuCopy.intervalOptions {
             let it = NSMenuItem(title: "\(sec) 秒", action: #selector(selectRefreshInterval(_:)), keyEquivalent: "")
             it.target = self
-            it.tag = Int(sec * 100)  // 用 tag 存储间隔值（×100 避免浮点精度问题）
+            it.tag = Int(sec * 1000)  // 用 tag 存储间隔值（×1000 避免浮点精度问题）
             intervalSub.addItem(it)
         }
         intervalParent.submenu = intervalSub
         m.addItem(intervalParent)
-
-        // 监控接口
-        let ifaceParent = NSMenuItem(title: "监控接口", action: nil, keyEquivalent: "")
-        ifaceParent.tag = MenuCopy.interfaceMenuTag
-        let ifaceSub = NSMenu()
-        ifaceParent.submenu = ifaceSub
-        interfaceMenu = ifaceSub
-        m.addItem(ifaceParent)
 
         m.addItem(.separator())
         let quit = NSMenuItem(title: "退出 \(NetMeterDisplayName.resolved)", action: #selector(quitApp), keyEquivalent: "q")
@@ -236,18 +214,10 @@ final class MenuBarStatusController: NSObject {
     }
 
     @objc private func selectRefreshInterval(_ sender: NSMenuItem) {
-        let sec = Double(sender.tag) / 100.0
+        let sec = Double(sender.tag) / 1000.0
         monitor?.sampleIntervalSeconds = sec
         if let m = monitor {
             startMenuBarRefreshTimer(for: m)
-        }
-    }
-
-    @objc private func selectInterface(_ sender: NSMenuItem) {
-        if sender.tag == MenuCopy.autoInterfaceTag {
-            monitor?.interfaceMonitor.selectedInterface = nil
-        } else if let name = sender.representedObject as? String {
-            monitor?.interfaceMonitor.selectedInterface = name
         }
     }
 
@@ -266,6 +236,15 @@ final class MenuBarStatusController: NSObject {
             host.sizingOptions = [.minSize, .maxSize]
             w.contentViewController = host
             aboutWindow = w
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification,
+                object: w,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.aboutWindow = nil
+                }
+            }
         }
         aboutWindow?.title = "关于 \(NetMeterDisplayName.resolved)"
         aboutWindow?.center()
@@ -328,56 +307,6 @@ final class MenuBarStatusController: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + DynamicSpeedWidth.shrinkDelay, execute: work)
     }
 
-    /// 接口列表变化时重建接口子菜单（由 Combine 订阅触发，非 menuWillOpen）
-    private func rebuildInterfaceSubmenu(interfaces: [InterfaceInfo]) {
-        guard let sub = interfaceMenu else { return }
-        sub.removeAllItems()
-
-        let autoItem = NSMenuItem(
-            title: "自动（默认路由）",
-            action: #selector(selectInterface(_:)),
-            keyEquivalent: ""
-        )
-        autoItem.target = self
-        autoItem.tag = MenuCopy.autoInterfaceTag
-        sub.addItem(autoItem)
-
-        sub.addItem(.separator())
-
-        for iface in interfaces {
-            let it = NSMenuItem(
-                title: iface.displayName,
-                action: #selector(selectInterface(_:)),
-                keyEquivalent: ""
-            )
-            it.target = self
-            it.representedObject = iface.name
-            sub.addItem(it)
-        }
-
-        if interfaces.isEmpty {
-            let none = NSMenuItem(title: "未检测到接口", action: nil, keyEquivalent: "")
-            none.isEnabled = false
-            sub.addItem(none)
-        }
-
-        // 重建后立即同步勾选状态
-        syncInterfaceMenuChecks()
-    }
-
-    /// 仅更新接口子菜单勾选状态（不重建）
-    private func syncInterfaceMenuChecks() {
-        guard let sub = interfaceMenu, let monitor else { return }
-        let currentSel = monitor.interfaceMonitor.selectedInterface
-        for it in sub.items {
-            if it.tag == MenuCopy.autoInterfaceTag {
-                it.state = currentSel == nil ? .on : .off
-            } else if let name = it.representedObject as? String {
-                it.state = name == currentSel ? .on : .off
-            }
-        }
-    }
-
     /// 打开菜单前同步子菜单勾选状态
     private func syncMenuChecks(in menu: NSMenu) {
         guard let monitor else { return }
@@ -385,14 +314,11 @@ final class MenuBarStatusController: NSObject {
         // 同步刷新间隔
         if let idx = menu.items.firstIndex(where: { $0.title == "刷新间隔" }),
            let sub = menu.items[idx].submenu {
-            let currentTag = Int(monitor.sampleIntervalSeconds * 100)
+            let currentTag = Int(monitor.sampleIntervalSeconds * 1000)
             for it in sub.items {
                 it.state = it.tag == currentTag ? .on : .off
             }
         }
-
-        // 同步监控接口（仅更新勾选，不重建子菜单）
-        syncInterfaceMenuChecks()
     }
 }
 

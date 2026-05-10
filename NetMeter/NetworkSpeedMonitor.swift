@@ -55,6 +55,8 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
     private let lock = NSLock()
     private var _sampleIntervalSeconds: Double = 2
     private var loopTask: Task<Void, Never>?
+    /// 接口切换时由 InterfaceMonitor 回调置位，采样循环检测后重置快照
+    private var needsResetSnapshot = false
 
     init(userDefaults: UserDefaults = .standard, interfaceMonitor: InterfaceMonitor = .shared) {
         self.preferences = userDefaults
@@ -66,6 +68,11 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
     }
 
     func start() {
+        interfaceMonitor.onSelectedInterfaceChange = { [weak self] in
+            self?.lock.lock()
+            self?.needsResetSnapshot = true
+            self?.lock.unlock()
+        }
         interfaceMonitor.start()
         scheduleRestartLoopFromMain()
     }
@@ -118,11 +125,24 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
             if Task.isCancelled { break }
 
             let interval = lock.withLock { max(_sampleIntervalSeconds, 0.2) }
+
+            // 接口切换时重置快照，避免跨接口 delta 产生异常值
+            let shouldReset = lock.withLock {
+                let r = needsResetSnapshot
+                needsResetSnapshot = false
+                return r
+            }
+            if shouldReset {
+                previousSnapshot = nil
+                previousTime = nil
+                idleStreak = 0
+            }
+
             // 读取当前选定接口：手动选择优先，否则使用默认路由接口
             let selectedIf = interfaceMonitor.selectedInterface ?? interfaceMonitor.defaultInterface
 
             do {
-                let snap = try await snapshotOnUtilityQueue(selectedInterface: selectedIf)
+                let snap = try Self.takeSnapshot(selectedInterface: selectedIf)
                 let tAfter = Date()
 
                 if let prev = previousSnapshot, let t0 = previousTime {
@@ -187,19 +207,6 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
         try InterfaceCounterSampler.snapshotTotals(selectedInterface: selectedInterface)
     }
 
-    private func snapshotOnUtilityQueue(selectedInterface: String?) async throws -> [String: (UInt32, UInt32)] {
-        let sel = selectedInterface
-        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[String: (UInt32, UInt32)], Error>) in
-            DispatchQueue.global(qos: .utility).async {
-                do {
-                    let s = try Self.takeSnapshot(selectedInterface: sel)
-                    cont.resume(returning: s)
-                } catch {
-                    cont.resume(throwing: error)
-                }
-            }
-        }
-    }
 }
 
 private extension NSLock {
