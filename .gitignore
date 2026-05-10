@@ -3,3 +3,5 @@ dist/
 # Debug 构建输出（目录名含 .noindex，Spotlight 不索引）
 .derived.noindex/
 .idea/
+# Xcode 用户特定设置
+xcuserdata/
