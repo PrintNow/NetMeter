@@ -14,20 +14,23 @@ env:
 jobs:
   build:
     runs-on: macos-15
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build universal binary
+      - name: Build ${{ matrix.arch }} binary
         run: |
           xcodebuild clean build \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Release \
-            ARCHS="arm64 x86_64" \
+            ARCHS="${{ matrix.arch }}" \
             ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Locate app and verify architectures
+      - name: Locate app and verify architecture
         run: |
           APP=$(find build -name "NetMeter.app" -type d | head -1)
           echo "APP_PATH=$APP" >> "$GITHUB_ENV"
@@ -36,13 +39,29 @@ jobs:
       - name: Create zip
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          ZIP_NAME="NetMeter-${VERSION}.zip"
+          ZIP_NAME="NetMeter-${VERSION}-${{ matrix.arch }}.zip"
           cd "$(dirname "$APP_PATH")"
           zip -r "$GITHUB_WORKSPACE/$ZIP_NAME" NetMeter.app
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetMeter-${{ matrix.arch }}
+          path: ${{ env.ZIP_NAME }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ZIP_NAME }}
+          files: artifacts/*.zip
           generate_release_notes: true
