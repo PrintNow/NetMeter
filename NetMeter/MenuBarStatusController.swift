@@ -260,15 +260,15 @@ final class MenuBarStatusController: NSObject {
                 backing: .buffered,
                 defer: false
             )
-            w.center()
+            w.collectionBehavior = .moveToActiveSpace
             w.isReleasedWhenClosed = false
             let host = NSHostingController(rootView: AboutView())
             host.sizingOptions = [.minSize, .maxSize]
             w.contentViewController = host
             aboutWindow = w
         }
-        // 每次打开同步标题（避免复用窗口时仍为旧文案）
         aboutWindow?.title = "关于 \(NetMeterDisplayName.resolved)"
+        aboutWindow?.center()
         aboutWindow?.makeKeyAndOrderFront(nil)
     }
 
