@@ -9,7 +9,7 @@ import SwiftUI
 /// 关于页固定文案（无远程仓库时请改成你的 GitHub 地址与署名）
 private enum AboutAppMetadata {
     static let author = "Shine"
-    static let githubRepoURL = URL(string: "https://github.com/PrintNow/NetMeter")!
+    static let githubRepoURL = URL(string: "https://github.com/PrintNow/NetMeter") ?? URL(filePath: "/")
 }
 
 struct AboutView: View {

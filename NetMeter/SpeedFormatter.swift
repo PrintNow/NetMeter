@@ -12,10 +12,6 @@ enum SpeedFormatter {
         "\(prefix) \(detail(bytesPerSecond: bytesPerSecond))"
     }
 
-    private static func compact(bytesPerSecond: Double) -> String {
-        format(bytesPerSecond: bytesPerSecond, decimals: 1, suffix: "")
-    }
-
     private static func detail(bytesPerSecond: Double) -> String {
         format(bytesPerSecond: bytesPerSecond, decimals: 2, suffix: "/s")
     }

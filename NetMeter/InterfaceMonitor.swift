@@ -40,9 +40,13 @@ final class InterfaceMonitor: ObservableObject {
         didSet {
             if selectedInterface != oldValue {
                 UserDefaults.standard.set(selectedInterface, forKey: Self.defaultsKey)
+                onSelectedInterfaceChange?()
             }
         }
     }
+
+    /// 接口切换回调（供采样器重置 previousSnapshot）
+    var onSelectedInterfaceChange: (() -> Void)?
 
     private static let defaultsKey = "NetMeter.SelectedInterface"
 
@@ -83,52 +87,54 @@ final class InterfaceMonitor: ObservableObject {
     }
 
     /// 刷新可用接口列表（从 getifaddrs 读取当前 UP+RUNNING 的 en*/utun* 接口）
-    /// 必须在主线程调用（更新 @Published 属性）
+    /// getifaddrs 在后台队列执行，结果回调到主线程更新 @Published 属性
     func refreshAvailableInterfaces() {
-        if !Thread.isMainThread {
-            DispatchQueue.main.async { [weak self] in self?.refreshAvailableInterfaces() }
-            return
-        }
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let head = ifaddr else {
-            availableInterfaces = []
-            return
-        }
-        defer { freeifaddrs(head) }
+        let defaultIf = defaultInterface
+        DispatchQueue.global(qos: .utility).async {
+            var ifaddr: UnsafeMutablePointer<ifaddrs>?
+            guard getifaddrs(&ifaddr) == 0, let head = ifaddr else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.availableInterfaces = []
+                }
+                return
+            }
+            defer { freeifaddrs(head) }
 
-        var seen = Set<String>()
-        var result: [InterfaceInfo] = []
-        var ptr: UnsafeMutablePointer<ifaddrs>? = head
-        while let p = ptr {
-            defer { ptr = p.pointee.ifa_next }
-            let flags = p.pointee.ifa_flags
-            guard (flags & UInt32(IFF_UP)) != 0, (flags & UInt32(IFF_RUNNING)) != 0 else { continue }
-            guard (flags & UInt32(IFF_LOOPBACK)) == 0 else { continue }
-            let name = String(cString: p.pointee.ifa_name)
-            guard !seen.contains(name) else { continue }
-            let n = name.lowercased()
-            guard n.hasPrefix("en") || n.hasPrefix("utun") else { continue }
-            guard !n.hasPrefix("bridge") else { continue }
-            seen.insert(name)
-            let isDef = (name == defaultInterface)
-            result.append(InterfaceInfo(
-                id: name,
-                name: name,
-                isDefaultRoute: isDef,
-                isVPN: n.hasPrefix("utun"),
-                typeDescription: Self.friendlyType(for: name)
-            ))
-        }
+            var seen = Set<String>()
+            var result: [InterfaceInfo] = []
+            var ptr: UnsafeMutablePointer<ifaddrs>? = head
+            while let p = ptr {
+                defer { ptr = p.pointee.ifa_next }
+                let flags = p.pointee.ifa_flags
+                guard (flags & UInt32(IFF_UP)) != 0, (flags & UInt32(IFF_RUNNING)) != 0 else { continue }
+                guard (flags & UInt32(IFF_LOOPBACK)) == 0 else { continue }
+                let name = String(cString: p.pointee.ifa_name)
+                guard !seen.contains(name) else { continue }
+                let n = name.lowercased()
+                guard n.hasPrefix("en") || n.hasPrefix("utun") else { continue }
+                seen.insert(name)
+                let isDef = (name == defaultIf)
+                result.append(InterfaceInfo(
+                    id: name,
+                    name: name,
+                    isDefaultRoute: isDef,
+                    isVPN: n.hasPrefix("utun"),
+                    typeDescription: Self.friendlyType(for: name)
+                ))
+            }
 
-        // 默认路由接口排最前，其次 VPN，其余按名称排序
-        result.sort { a, b in
-            if a.isDefaultRoute != b.isDefaultRoute { return a.isDefaultRoute }
-            if a.isVPN != b.isVPN { return !a.isVPN }
-            return a.name < b.name
-        }
-        // 仅在列表变化时更新，避免重复触发 @Published 导致 SwiftUI 重渲染
-        if result.map(\.name) != availableInterfaces.map(\.name) {
-            availableInterfaces = result
+            result.sort { a, b in
+                if a.isDefaultRoute != b.isDefaultRoute { return a.isDefaultRoute }
+                if a.isVPN != b.isVPN { return !a.isVPN }
+                return a.name < b.name
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if result.map(\.name) != self.availableInterfaces.map(\.name) {
+                    self.availableInterfaces = result
+                }
+            }
         }
     }
 

@@ -24,7 +24,6 @@ enum InterfaceCounterPolicy {
         guard (flags & UInt32(IFF_UP)) != 0, (flags & UInt32(IFF_RUNNING)) != 0 else { return false }
         guard (flags & UInt32(IFF_LOOPBACK)) == 0 else { return false }
         let n = name.lowercased()
-        if n.hasPrefix("bridge") { return false }
         return n.hasPrefix("en") || n.hasPrefix("utun")
     }
 }
