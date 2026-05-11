@@ -53,7 +53,7 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
 
     private let preferences: UserDefaults
     private let lock = NSLock()
-    private var _sampleIntervalSeconds: Double = 2
+    private var _sampleIntervalSeconds: Double = 1.5
     private var loopTask: Task<Void, Never>?
     /// 接口切换时由 InterfaceMonitor 回调置位，采样循环检测后重置快照
     private var needsResetSnapshot = false

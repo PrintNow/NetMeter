@@ -20,7 +20,7 @@ final class NetworkSpeedMonitorDefaultsTests: XCTestCase {
         XCTAssertEqual(m.sampleIntervalSeconds, 5.0)
     }
 
-    func testInit_defaultIntervalIs2() {
+    func testInit_defaultIntervalIs1_5() {
         let suiteName = "test.NetMeter.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
             XCTFail("无法创建隔离 UserDefaults")
@@ -29,6 +29,6 @@ final class NetworkSpeedMonitorDefaultsTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
 
         let m = NetworkSpeedMonitor(userDefaults: defaults, interfaceMonitor: .shared)
-        XCTAssertEqual(m.sampleIntervalSeconds, 2.0)
+        XCTAssertEqual(m.sampleIntervalSeconds, 1.5)
     }
 }

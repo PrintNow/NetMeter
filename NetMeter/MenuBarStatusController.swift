@@ -164,7 +164,7 @@ final class MenuBarStatusController: NSObject {
             }
         }
         t.tolerance = interval * 0.2
-        RunLoop.main.add(t, forMode: .default)
+        RunLoop.main.add(t, forMode: .common)
         menuBarRefreshTimer = t
     }
 
@@ -184,7 +184,7 @@ final class MenuBarStatusController: NSObject {
     }
 
     private enum MenuCopy {
-        static let intervalOptions: [Double] = [1, 2, 3, 5, 10]
+        static let intervalOptions: [Double] = [1, 1.5, 2, 3, 5, 10]
     }
 
     private func buildMenu() -> NSMenu {
