@@ -26,7 +26,7 @@ final class MenuBarStatusController: NSObject {
 
     /// 菜单栏箭头与速率间距（须为正，避免 NSTextField 与数字重叠）
     private enum MenuBarTrafficLayout {
-        static let arrowToSpeedSpacing: CGFloat = 3
+        static let arrowToSpeedSpacing: CGFloat = 2
     }
 
     private var statusItem: NSStatusItem?
@@ -76,16 +76,20 @@ final class MenuBarStatusController: NSObject {
         root.spacing = 0
         root.alignment = .trailing
 
+        // 上行按顶部对齐：箭头顶边贴齐速率文本顶边
         let rowUp = NSStackView()
         rowUp.orientation = .horizontal
         rowUp.spacing = MenuBarTrafficLayout.arrowToSpeedSpacing
-        rowUp.alignment = .centerY
+        rowUp.alignment = .top
         rowUp.distribution = .fill
 
+        // 下行按基线对齐：↓ 的箭头尖端恰好位于字体基线上，
+        // 速率文本中的数字/字母底部也位于基线上，
+        // 因此基线对齐能让两者视觉底部精确贴齐，避免不同字号 descent 空白带来的视觉错位
         let rowDown = NSStackView()
         rowDown.orientation = .horizontal
         rowDown.spacing = MenuBarTrafficLayout.arrowToSpeedSpacing
-        rowDown.alignment = .centerY
+        rowDown.alignment = .lastBaseline
         rowDown.distribution = .fill
 
         // 纯 AppKit 箭头，避免 NSHostingView+SwiftUI 在菜单栏持续合成
@@ -120,7 +124,7 @@ final class MenuBarStatusController: NSObject {
         root.addArrangedSubview(topInset)
         root.addArrangedSubview(rowUp)
         root.addArrangedSubview(rowDown)
-        root.setCustomSpacing(-1.5, after: rowUp)
+        root.setCustomSpacing(-2, after: rowUp)
 
         root.translatesAutoresizingMaskIntoConstraints = false
         button.addSubview(root)
@@ -139,9 +143,18 @@ final class MenuBarStatusController: NSObject {
     }
 
     private func makeArrowLabel(isUpload: Bool) -> NSTextField {
-        let f = NSTextField(labelWithString: isUpload ? "↑" : "↓")
-        f.font = NSFont.systemFont(ofSize: 10, weight: .bold)
-        f.textColor = .labelColor
+        let glyph = isUpload ? "↑" : "↓"
+        let font = NSFont.systemFont(ofSize: 10, weight: .bold)
+        var attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.labelColor,
+        ]
+        // 下箭头视觉上略高于速率底线，按 1pt 基线下偏移让箭头尖端更贴齐底部；
+        // 字段对外报告的基线位置不变，行内 `.lastBaseline` 对齐基准仍然成立
+        if !isUpload {
+            attrs[.baselineOffset] = NSNumber(value: -1.0)
+        }
+        let f = NSTextField(labelWithAttributedString: NSAttributedString(string: glyph, attributes: attrs))
         f.alignment = .center
         f.backgroundColor = .clear
         f.isBordered = false
@@ -150,8 +163,8 @@ final class MenuBarStatusController: NSObject {
         f.translatesAutoresizingMaskIntoConstraints = false
         f.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         f.setContentHuggingPriority(.defaultHigh, for: .vertical)
-        f.widthAnchor.constraint(equalToConstant: 14).isActive = true
-        f.heightAnchor.constraint(equalToConstant: 14).isActive = true
+        f.widthAnchor.constraint(equalToConstant: 11).isActive = true
+        // 不强制高度，使用自然内容高度，避免与速率文本框高差异在居中/边缘对齐时拉偏
         return f
     }
 
