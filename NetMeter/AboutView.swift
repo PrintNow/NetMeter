@@ -30,34 +30,34 @@ struct AboutView: View {
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 72, height: 72)
-                .padding(.bottom, 12)
+                .frame(width: 84, height: 84)
+                .padding(.bottom, 14)
 
             Text(NetMeterDisplayName.resolved)
-                .font(.title2.weight(.semibold))
-                .padding(.bottom, 4)
+                .font(.title.weight(.bold))
+                .padding(.bottom, 5)
 
             Text(versionLine)
-                .font(.subheadline)
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
 
             Divider()
                 .padding(.horizontal, 32)
-                .padding(.vertical, 16)
+                .padding(.vertical, 18)
 
-            VStack(spacing: 5) {
+            VStack(spacing: 6) {
                 Text("© 2026 \(AboutAppMetadata.author)")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
 
                 Link("MIT License", destination: AboutAppMetadata.licenseURL)
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.tertiary)
 
                 Link("GitHub", destination: AboutAppMetadata.repoURL)
-                    .font(.caption)
-                    .padding(.top, 2)
+                    .font(.footnote)
+                    .padding(.top, 3)
             }
         }
         .padding(.vertical, 28)
