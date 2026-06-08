@@ -19,7 +19,9 @@ NetMeter 是一个 macOS 菜单栏网速监控工具，**7×24 小时常驻运�
 ### 2. 省电优先
 
 - **自适应采样** — 连续 N 次无流量后自动降低采样频率（最高 8 秒），有流量时立即恢复
-- **最小化唤醒** — Timer 设置 `tolerance`，允许系统合并唤醒以节省电量
+- **最小化唤醒** — Timer tolerance 设为 `interval * 0.5`（50%），允许系统合并多个定时器唤醒
+- **RunLoop 模式用 `.default`** — 不要用 `.common`；`.common` 包含 `.eventTracking` 会阻止 App Nap coalescing，是菜单栏应用能耗偏高的主因
+- **休眠/灭屏停止采样** — 订阅 `NSWorkspace.willSleepNotification` / `screensDidSleepNotification` 取消采样 Task，订阅 `didWakeNotification` / `screensDidWakeNotification` 重启；实现在 `NetworkSpeedMonitor.setupSleepObservers()`
 - **无 UI 时不渲染** — 菜单关闭时停止不必要的刷新；About 窗口关闭后立即释放
 - **不要轮询** — 用 `NWPathMonitor` 监听网络变化，不要定时检查网络状态
 
@@ -98,6 +100,9 @@ getifaddrs (内核)
 
 ## 发布流程
 
-1. 更新 `project.pbxproj` 中的 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`
-2. 提交 → 打 tag（`git tag vX.Y.Z`）→ push
-3. GitHub Actions 自动构建 arm64+x86_64 通用二进制并发布 Release
+1. 提交所有变更
+2. 打 tag：`git tag vX.Y.Z`
+3. `git push origin main && git push origin vX.Y.Z`
+4. GitHub Actions 自动从 tag 名读取版本号，构建 arm64 + x86_64 并发布 Release
+
+> `project.pbxproj` 中的版本号**不需要**手动修改；CI 通过 `MARKETING_VERSION="${GITHUB_REF_NAME#v}"` 在构建时注入。

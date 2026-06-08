@@ -2,13 +2,28 @@
 
 本文说明如何在 macOS 上**可重复地**观察 NetMeter 的 CPU、唤醒与能耗，便于对比优化前后或不同「数据来源」后端。
 
+## 已知能耗优化点（v1.5.2+）
+
+| 优化 | 说明 |
+|------|------|
+| RunLoop `.default` | 菜单栏 Timer 从 `.common` 改为 `.default`，允许 App Nap coalescing |
+| Timer tolerance 50% | 允许系统将唤醒合并到同一 CPU 唤醒周期 |
+| 休眠/灭屏停止采样 | `NSWorkspace` 通知驱动，屏关后采样 Task 取消，唤醒后自动重启 |
+
 ## Activity Monitor
 
 1. 打开「活动监视器」，切换到 **CPU** 或 **能耗**。
 2. 在搜索框输入 `NetMeter`，观察 **% CPU**、**线程**、**Idle Wake Ups**（若显示）。
-3. 在菜单栏 **数据来源** 中分别选择 **接口计数器** 与 **nettop（全进程）**，各静置 1～2 分钟记录数值。
+3. 静置 1～2 分钟记录数值。
 
-说明：菜单栏类应用若周期性唤醒，**能耗排名**可能靠前；应同时看 **CPU% 是否长期个位数**（Release 构建更接近真实使用）。
+说明：菜单栏类应用若周期性唤醒，**能耗排名**可能靠前；应同时看 **CPU% 是否长期个位数**（Release 构建更接近真实使用）。**12hr Power 目标 < 10**（同类 Clash Verge 约 11）。
+
+## 验证休眠行为
+
+1. 正常运行 NetMeter
+2. 关闭显示器（`pmset displaysleepnow`）或系统休眠
+3. 唤醒后确认菜单栏速率显示恢复正常（首次读数为 0，第二次采样后恢复）
+4. Activity Monitor 确认休眠期间 NetMeter CPU 为 0
 
 ## Instruments
 
