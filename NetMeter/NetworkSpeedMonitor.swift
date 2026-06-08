@@ -6,6 +6,7 @@
 //  避免 @Observable + MainActor 采样环导致 CPU 异常偏高。
 //
 
+import AppKit
 import Combine
 import Foundation
 
@@ -57,6 +58,7 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
     private var loopTask: Task<Void, Never>?
     /// 接口切换时由 InterfaceMonitor 回调置位，采样循环检测后重置快照
     private var needsResetSnapshot = false
+    private var sleepObservers: [NSObjectProtocol] = []
 
     init(userDefaults: UserDefaults = .standard, interfaceMonitor: InterfaceMonitor = .shared) {
         self.preferences = userDefaults
@@ -75,12 +77,36 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
         }
         interfaceMonitor.start()
         scheduleRestartLoopFromMain()
+        setupSleepObservers()
     }
 
     func stop() {
         loopTask?.cancel()
         loopTask = nil
         interfaceMonitor.stop()
+        let ws = NSWorkspace.shared.notificationCenter
+        sleepObservers.forEach { ws.removeObserver($0) }
+        sleepObservers.removeAll()
+    }
+
+    private func setupSleepObservers() {
+        guard sleepObservers.isEmpty else { return }
+        let ws = NSWorkspace.shared.notificationCenter
+        let pause: (Notification) -> Void = { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.loopTask?.cancel()
+                self?.loopTask = nil
+            }
+        }
+        let resume: (Notification) -> Void = { [weak self] _ in
+            DispatchQueue.main.async { self?.scheduleRestartLoopFromMain() }
+        }
+        sleepObservers = [
+            ws.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: nil, using: pause),
+            ws.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: nil, using: pause),
+            ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: nil, using: resume),
+            ws.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: nil, using: resume),
+        ]
     }
 
     /// 在主线程安排重启采样环（start / interval 变更）

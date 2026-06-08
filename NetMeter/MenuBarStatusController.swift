@@ -176,8 +176,8 @@ final class MenuBarStatusController: NSObject {
                 self?.updateLabels()
             }
         }
-        t.tolerance = interval * 0.2
-        RunLoop.main.add(t, forMode: .common)
+        t.tolerance = interval * 0.5
+        RunLoop.main.add(t, forMode: .default)
         menuBarRefreshTimer = t
     }
 
@@ -235,7 +235,7 @@ final class MenuBarStatusController: NSObject {
     }
 
     @objc private func showAboutPanel() {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate(ignoringOtherApps: false)
         if aboutWindow == nil {
             let w = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 380, height: 420),
