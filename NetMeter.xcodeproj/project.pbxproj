@@ -77,6 +77,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 14D3252A2F896CDF00C5E2A0 /* Build configuration list for PBXNativeTarget "NetMeter" */;
 			buildPhases = (
+				CC0000012F896CDE00C5E2A0 /* Generate GitInfo.swift */,
 				14D3251B2F896CDE00C5E2A0 /* Sources */,
 				14D3251C2F896CDE00C5E2A0 /* Frameworks */,
 				14D3251D2F896CDE00C5E2A0 /* Resources */,
@@ -198,6 +199,29 @@
 			targetProxy = A70000082F896CDE00C5E2A0 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CC0000012F896CDE00C5E2A0 /* Generate GitInfo.swift */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Generate GitInfo.swift";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/NetMeter/GitInfo.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "SHA=$(/usr/bin/git -C \"$SRCROOT\" rev-parse --short HEAD 2>/dev/null || echo 'development')\ncat > \"$SRCROOT/NetMeter/GitInfo.swift\" << EOF\n// Auto-generated\nenum GitInfo {\n    static let commitHash = \"$SHA\"\n}\nEOF\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		14D325282F896CDF00C5E2A0 /* Debug */ = {
@@ -333,6 +357,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "NetMeter (Debug)";
@@ -369,6 +394,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = NetMeter;

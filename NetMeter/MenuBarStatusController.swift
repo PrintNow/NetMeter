@@ -237,7 +237,7 @@ final class MenuBarStatusController: NSObject {
         NSApp.activate(ignoringOtherApps: false)
         if aboutWindow == nil {
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 380, height: 420),
+                contentRect: NSRect(x: 0, y: 0, width: 280, height: 260),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false

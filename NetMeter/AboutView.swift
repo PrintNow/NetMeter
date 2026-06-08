@@ -6,74 +6,62 @@
 import AppKit
 import SwiftUI
 
-/// 关于页固定文案（无远程仓库时请改成你的 GitHub 地址与署名）
 private enum AboutAppMetadata {
     static let author = "Shine"
-    static let githubRepoURL = URL(string: "https://github.com/PrintNow/NetMeter") ?? URL(filePath: "/")
+    static let repoURL = URL(string: "https://github.com/PrintNow/NetMeter")!
+    static let licenseURL = URL(string: "https://github.com/PrintNow/NetMeter/blob/main/LICENSE")!
 }
 
 struct AboutView: View {
     private var versionLine: String {
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
-        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
-        return "\(v)（\(b)）"
+        return "\(v) (\(GitInfo.commitHash))"
     }
 
-    /// 优先读包内 `AppIcon.icns`（真图标）；仅回退时才用 Workspace（调试时易变成占位图）
     private static func bundledAppIcon() -> NSImage {
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
+           let img = NSImage(contentsOf: url) { return img }
         return NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Spacer(minLength: 0)
-                Image(nsImage: Self.bundledAppIcon())
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 96, height: 96)
-                Spacer(minLength: 0)
-            }
+        VStack(spacing: 0) {
+            Image(nsImage: Self.bundledAppIcon())
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 72, height: 72)
+                .padding(.bottom, 12)
 
             Text(NetMeterDisplayName.resolved)
-                .font(.title.weight(.bold))
+                .font(.title2.weight(.semibold))
+                .padding(.bottom, 4)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("版本")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(versionLine)
-                    .font(.body.monospacedDigit())
-            }
+            Text(versionLine)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("作者")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(AboutAppMetadata.author)
-                    .font(.body)
-            }
+            Divider()
+                .padding(.horizontal, 32)
+                .padding(.vertical, 16)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("源码")
-                    .font(.subheadline)
+            VStack(spacing: 5) {
+                Text("© 2026 \(AboutAppMetadata.author)")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                Link("GitHub 项目", destination: AboutAppMetadata.githubRepoURL)
-                    .font(.body)
-                Text(AboutAppMetadata.githubRepoURL.absoluteString)
+
+                Link("MIT License", destination: AboutAppMetadata.licenseURL)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+
+                Link("GitHub", destination: AboutAppMetadata.repoURL)
+                    .font(.caption)
+                    .padding(.top, 2)
             }
         }
-        .frame(minWidth: 320, maxWidth: 440, alignment: .topLeading)
-        .padding(24)
+        .padding(.vertical, 28)
+        .frame(width: 280)
     }
 }
 
