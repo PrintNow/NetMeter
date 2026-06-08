@@ -18,6 +18,10 @@
 
 ---
 
+<p align="center">
+  <img src="docs/demo.png" width="600" alt="NetMeter Demo">
+</p>
+
 在菜单栏显示**上行 / 下行**实时网速，基于内核接口字节计数器差分采样，CPU 占用极低，不影响电池续航。
 
 ## 特性
