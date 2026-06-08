@@ -244,6 +244,7 @@ final class MenuBarStatusController: NSObject {
             )
             w.collectionBehavior = .moveToActiveSpace
             w.isReleasedWhenClosed = false
+            w.level = .floating
             let host = NSHostingController(rootView: AboutView())
             host.sizingOptions = [.minSize, .maxSize]
             w.contentViewController = host
@@ -259,8 +260,17 @@ final class MenuBarStatusController: NSObject {
             }
         }
         aboutWindow?.title = "关于 \(NetMeterDisplayName.resolved)"
-        aboutWindow?.center()
+        centerOnMainScreen(aboutWindow)
         aboutWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func centerOnMainScreen(_ window: NSWindow?) {
+        guard let window, let screen = NSScreen.main else { return }
+        let sf = screen.visibleFrame
+        let wf = window.frame
+        let x = sf.minX + (sf.width - wf.width) / 2
+        let y = sf.minY + (sf.height - wf.height) / 2
+        window.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
     @objc private func quitApp() {
