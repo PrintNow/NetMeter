@@ -53,6 +53,8 @@ final class InterfaceMonitor: ObservableObject {
     private let monitor = NWPathMonitor()
     private let monitorQueue = DispatchQueue(label: "cc.nowtime.NetMeter.InterfaceMonitor", qos: .utility)
     private var isMonitoring = false
+    /// 防抖：避免网络抖动时连续触发 getifaddrs
+    private var refreshWorkItem: DispatchWorkItem?
 
     private init() {
         self.selectedInterface = UserDefaults.standard.string(forKey: Self.defaultsKey)
@@ -69,11 +71,11 @@ final class InterfaceMonitor: ObservableObject {
                 // 仅在默认接口变化时更新，避免重复触发 @Published
                 guard name != self.defaultInterface else { return }
                 self.defaultInterface = name
-                self.refreshAvailableInterfaces()
-                // 自动模式下跟随默认路由
-                if self.selectedInterface == nil {
-                    // defaultInterface 变化已通过 @Published 通知采样器
-                }
+                // 防抖 100ms：网络抖动时路径可能连续变化，稳定后再刷新接口列表
+                self.refreshWorkItem?.cancel()
+                let work = DispatchWorkItem { [weak self] in self?.refreshAvailableInterfaces() }
+                self.refreshWorkItem = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
             }
         }
         monitor.start(queue: monitorQueue)

@@ -19,6 +19,18 @@ struct SpeedDisplayState: Equatable, Sendable {
     var lastUpdate: Date?
 }
 
+// MARK: - 采样策略常量
+
+private enum SamplingPolicy {
+    static let minInterval: Double = 0.2
+    static let maxInterval: Double = 60
+    /// 连续无流量超过此次数后降低采样频率
+    static let idleStreakThreshold = 3
+    static let idleBackoffMultiplier: Double = 2
+    /// 空闲降频上限（秒）
+    static let idleBackoffCap: Double = 8
+}
+
 // MARK: - 门面
 
 final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
@@ -90,8 +102,11 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
     }
 
     private func setupSleepObservers() {
-        guard sleepObservers.isEmpty else { return }
+        // 先清理旧的，防止 start() 多次调用时重复注册
         let ws = NSWorkspace.shared.notificationCenter
+        sleepObservers.forEach { ws.removeObserver($0) }
+        sleepObservers.removeAll()
+
         let pause: (Notification) -> Void = { [weak self] _ in
             DispatchQueue.main.async {
                 self?.loopTask?.cancel()
@@ -148,9 +163,7 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
         var idleStreak = 0
 
         while !Task.isCancelled {
-            if Task.isCancelled { break }
-
-            let interval = lock.withLock { max(_sampleIntervalSeconds, 0.2) }
+            let interval = lock.withLock { max(_sampleIntervalSeconds, SamplingPolicy.minInterval) }
 
             // 接口切换时重置快照，避免跨接口 delta 产生异常值
             let shouldReset = lock.withLock {
@@ -216,10 +229,10 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
             }
 
             var sleepSec = interval
-            if idleStreak >= 3 {
-                sleepSec = min(8, interval * 2)
+            if idleStreak >= SamplingPolicy.idleStreakThreshold {
+                sleepSec = min(SamplingPolicy.idleBackoffCap, interval * SamplingPolicy.idleBackoffMultiplier)
             }
-            let sleepClamped = max(0.2, min(sleepSec, 60))
+            let sleepClamped = max(SamplingPolicy.minInterval, min(sleepSec, SamplingPolicy.maxInterval))
             let ns = UInt64(sleepClamped * 1_000_000_000)
             do {
                 try await Task.sleep(nanoseconds: ns)

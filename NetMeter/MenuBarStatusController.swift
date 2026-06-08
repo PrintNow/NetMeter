@@ -30,8 +30,8 @@ final class MenuBarStatusController: NSObject {
 
     private var statusItem: NSStatusItem?
     private weak var monitor: NetworkSpeedMonitor?
-    private weak var labelUp: NSTextField?
-    private weak var labelDown: NSTextField?
+    private var labelUp: NSTextField?
+    private var labelDown: NSTextField?
 
     /// 动态占位宽：加宽立即生效，收窄延迟执行，减少菜单栏左右抖动
     private enum DynamicSpeedWidth {
