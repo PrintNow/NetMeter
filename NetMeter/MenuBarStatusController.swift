@@ -10,7 +10,6 @@ import SwiftUI
 @MainActor
 final class NetMeterAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
         NetworkSpeedMonitor.shared.start()
         MenuBarStatusController.shared.install(monitor: NetworkSpeedMonitor.shared)
     }
