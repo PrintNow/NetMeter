@@ -47,6 +47,7 @@ final class MenuBarStatusController: NSObject {
     private var aboutWindow: NSWindow?
     /// 定时拉取速率刷新菜单栏，避免 withObservationTracking 高频闭环占满 CPU
     private var menuBarRefreshTimer: Timer?
+    private var screenObservers: [NSObjectProtocol] = []
 
     private override init() {
         super.init()
@@ -55,6 +56,8 @@ final class MenuBarStatusController: NSObject {
     deinit {
         shrinkWidthWorkItem?.cancel()
         menuBarRefreshTimer?.invalidate()
+        let ws = NSWorkspace.shared.notificationCenter
+        screenObservers.forEach { ws.removeObserver($0) }
     }
 
     func install(monitor: NetworkSpeedMonitor) {
@@ -139,6 +142,7 @@ final class MenuBarStatusController: NSObject {
         item.menu = menu
         updateLabels()
         startMenuBarRefreshTimer(for: monitor)
+        setupScreenObservers()
     }
 
     private func makeArrowLabel(isUpload: Bool) -> NSTextField {
@@ -176,8 +180,41 @@ final class MenuBarStatusController: NSObject {
             }
         }
         t.tolerance = interval * 0.5
-        RunLoop.main.add(t, forMode: .default)
+        RunLoop.main.add(t, forMode: .common)
         menuBarRefreshTimer = t
+    }
+
+    private func setupScreenObservers() {
+        let ws = NSWorkspace.shared.notificationCenter
+        screenObservers.forEach { ws.removeObserver($0) }
+        screenObservers.removeAll()
+
+        let pause: @Sendable (Notification) -> Void = { [weak self] _ in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.menuBarRefreshTimer?.invalidate()
+                    self?.menuBarRefreshTimer = nil
+                }
+            }
+        }
+        let resume: @Sendable (Notification) -> Void = { [weak self] _ in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, let monitor = self.monitor else { return }
+                    self.startMenuBarRefreshTimer(for: monitor)
+                }
+            }
+        }
+        screenObservers = [
+            ws.addObserver(forName: NSWorkspace.willSleepNotification,
+                           object: nil, queue: nil, using: pause),
+            ws.addObserver(forName: NSWorkspace.screensDidSleepNotification,
+                           object: nil, queue: nil, using: pause),
+            ws.addObserver(forName: NSWorkspace.didWakeNotification,
+                           object: nil, queue: nil, using: resume),
+            ws.addObserver(forName: NSWorkspace.screensDidWakeNotification,
+                           object: nil, queue: nil, using: resume),
+        ]
     }
 
     private func makeSpeedLabel() -> NSTextField {
@@ -280,13 +317,13 @@ final class MenuBarStatusController: NSObject {
     private func updateLabels() {
         guard let monitor else { return }
         let lines = MenuBarSpeedLines.make(uploadBps: monitor.uploadBps, downloadBps: monitor.downloadBps)
-        if labelUp?.stringValue != lines.upload {
-            labelUp?.stringValue = lines.upload
+        let uploadChanged   = labelUp?.stringValue   != lines.upload
+        let downloadChanged = labelDown?.stringValue != lines.download
+        if uploadChanged   { labelUp?.stringValue   = lines.upload }
+        if downloadChanged { labelDown?.stringValue = lines.download }
+        if uploadChanged || downloadChanged {
+            reconcileSpeedLabelWidths(upload: lines.upload, download: lines.download)
         }
-        if labelDown?.stringValue != lines.download {
-            labelDown?.stringValue = lines.download
-        }
-        reconcileSpeedLabelWidths(upload: lines.upload, download: lines.download)
     }
 
     /// 目标宽小于已应用宽时防抖收窄；变宽立即跟上
