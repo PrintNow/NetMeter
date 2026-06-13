@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  SCHEME: NetMeter
+  PROJECT: NetMeter.xcodeproj
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (arm64)
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          START=$SECONDS
+          xcodebuild clean build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1
+          echo "duration=$((SECONDS - START))s" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        id: test
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          START=$SECONDS
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'platform=macOS' \
+            2>&1
+          echo "duration=$((SECONDS - START))s" >> "$GITHUB_OUTPUT"
+
+      - name: Post result to PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ci-result
+          message: |
+            ## CI 结果
+
+            | 步骤 | 状态 | 耗时 |
+            |------|------|------|
+            | 🔨 Build (arm64) | ${{ steps.build.outcome == 'success' && '✅ 通过' || '❌ 失败' }} | ${{ steps.build.outputs.duration }} |
+            | 🧪 Tests | ${{ steps.test.outcome == 'success' && '✅ 通过' || '❌ 失败' }} | ${{ steps.test.outputs.duration }} |
+
+            > `${{ github.sha }}` · [查看完整日志](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      - name: Fail if build or tests failed
+        if: steps.build.outcome == 'failure' || steps.test.outcome == 'failure'
+        run: exit 1

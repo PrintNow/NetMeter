@@ -6,7 +6,7 @@
 
 | 优化 | 说明 |
 |------|------|
-| RunLoop `.default` | 菜单栏 Timer 从 `.common` 改为 `.default`，允许 App Nap coalescing |
+| RunLoop `.common` | 菜单栏 Timer 使用 `.common` 模式，确保菜单打开期间速率显示持续刷新 |
 | Timer tolerance 50% | 允许系统将唤醒合并到同一 CPU 唤醒周期 |
 | 休眠/灭屏停止采样 | `NSWorkspace` 通知驱动，屏关后采样 Task 取消，唤醒后自动重启 |
 
