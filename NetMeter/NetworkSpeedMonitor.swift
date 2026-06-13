@@ -24,11 +24,9 @@ struct SpeedDisplayState: Equatable, Sendable {
 private enum SamplingPolicy {
     static let minInterval: Double = 0.2
     static let maxInterval: Double = 60
-    /// 连续无流量超过此次数后降低采样频率
+    /// 连续无流量超过此次数后进入退避；每经过一个 threshold 周期指数翻倍，直至 maxInterval
     static let idleStreakThreshold = 3
     static let idleBackoffMultiplier: Double = 2
-    /// 空闲降频上限（秒）
-    static let idleBackoffCap: Double = 8
 }
 
 // MARK: - 门面
@@ -230,7 +228,11 @@ final class NetworkSpeedMonitor: ObservableObject, @unchecked Sendable {
 
             var sleepSec = interval
             if idleStreak >= SamplingPolicy.idleStreakThreshold {
-                sleepSec = min(SamplingPolicy.idleBackoffCap, interval * SamplingPolicy.idleBackoffMultiplier)
+                let steps = idleStreak / SamplingPolicy.idleStreakThreshold
+                sleepSec = min(
+                    SamplingPolicy.maxInterval,
+                    interval * pow(SamplingPolicy.idleBackoffMultiplier, Double(steps))
+                )
             }
             let sleepClamped = max(SamplingPolicy.minInterval, min(sleepSec, SamplingPolicy.maxInterval))
             let ns = UInt64(sleepClamped * 1_000_000_000)
